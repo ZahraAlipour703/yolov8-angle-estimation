@@ -7,6 +7,7 @@ from typing import List
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 __all__ = (
     "Conv",
@@ -19,12 +20,12 @@ __all__ = (
     "GhostConv",
     "ChannelAttention",
     "SpatialAttention",
+    "CoordAtt",
     "CBAM",
     "Concat",
     "RepConv",
     "Index",
 )
-
 
 def autopad(k, p=None, d=1):  # kernel, padding, dilation
     """Pad to 'same' shape outputs."""
@@ -309,7 +310,6 @@ class Focus(nn.Module):
         """
         super().__init__()
         self.conv = Conv(c1 * 4, c2, k, s, p, g, act=act)
-        # self.contract = Contract(gain=2)
 
     def forward(self, x):
         """
@@ -323,8 +323,14 @@ class Focus(nn.Module):
         Returns:
             (torch.Tensor): Output tensor.
         """
-        return self.conv(torch.cat((x[..., ::2, ::2], x[..., 1::2, ::2], x[..., ::2, 1::2], x[..., 1::2, 1::2]), 1))
-        # return self.conv(self.contract(x))
+        return self.conv(torch.cat(
+            (
+                x[..., ::2, ::2],
+                x[..., 1::2, ::2],
+                x[..., ::2, 1::2],
+                x[..., 1::2, 1::2],
+            ), 1
+        ))
 
 
 class GhostConv(nn.Module):
@@ -384,9 +390,6 @@ class RepConv(nn.Module):
         bn (nn.BatchNorm2d, optional): Batch normalization for identity branch.
         act (nn.Module): Activation function.
         default_act (nn.Module): Default activation function (SiLU).
-
-    References:
-        https://github.com/DingXiaoH/RepVGG/blob/main/repvgg.py
     """
 
     default_act = nn.SiLU()  # default activation
@@ -612,7 +615,87 @@ class SpatialAttention(nn.Module):
         Returns:
             (torch.Tensor): Spatial-attended output tensor.
         """
-        return x * self.act(self.cv1(torch.cat([torch.mean(x, 1, keepdim=True), torch.max(x, 1, keepdim=True)[0]], 1)))
+        # compute channel-wise mean and max
+        avg_out = torch.mean(x, dim=1, keepdim=True)
+        max_out = torch.max(x, dim=1, keepdim=True)[0]
+        x_cat = torch.cat([avg_out, max_out], dim=1)
+        return x * self.act(self.cv1(x_cat))
+
+
+class CoordAtt(nn.Module):
+    """
+    Coordinate Attention (CoordAtt) module.
+
+    This implementation follows:
+        Hou, Qibin, et al. "Coordinate Attention for Efficient Mobile Network Design." CVPR 2021.
+
+    Attributes:
+        pool_h (nn.AdaptiveAvgPool2d): Pooling along-height to capture vertical context.
+        pool_w (nn.AdaptiveAvgPool2d): Pooling along-width to capture horizontal context.
+        conv1 (nn.Conv2d): Shared 1x1 convolution to reduce channels.
+        bn1 (nn.BatchNorm2d): BatchNorm after conv1.
+        act (nn.ReLU): Activation for the intermediate representation.
+        conv_h (nn.Conv2d): Convolution to produce height-wise attention.
+        conv_w (nn.Conv2d): Convolution to produce width-wise attention.
+    """
+
+    def __init__(self, inp: int, oup: int, reduction: int = 32):
+        """
+        Initialize CoordAtt module.
+
+        Args:
+            inp (int): Number of input channels.
+            oup (int): Number of output channels.
+            reduction (int): Reduction factor for intermediate channels.
+        """
+        super().__init__()
+        self.pool_h = nn.AdaptiveAvgPool2d((None, 1))
+        self.pool_w = nn.AdaptiveAvgPool2d((1, None))
+        mip = max(8, inp // reduction)
+
+        self.conv1 = nn.Conv2d(inp, mip, kernel_size=1, stride=1, padding=0)
+        self.bn1 = nn.BatchNorm2d(mip)
+        self.act = nn.ReLU()
+
+        # conv branch for height
+        self.conv_h = nn.Conv2d(mip, oup, kernel_size=1, stride=1, padding=0)
+        # conv branch for width
+        self.conv_w = nn.Conv2d(mip, oup, kernel_size=1, stride=1, padding=0)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass of CoordAtt.
+
+        Args:
+            x (torch.Tensor): Input feature map of shape (B, C, H, W).
+
+        Returns:
+            (torch.Tensor): Output feature map with coordinate attention applied.
+        """
+        identity = x
+        B, C, H, W = x.size()
+
+        # Average along width, resulting shape (B, C, H, 1)
+        x_h = self.pool_h(x)
+        # Average along height, resulting shape (B, C, 1, W)
+        x_w = self.pool_w(x).permute(0, 1, 3, 2)
+
+        # Concatenate along spatial dimension: (B, C, H, 1 + W, 1)
+        y = torch.cat([x_h, x_w], dim=2)  # (B, C, H + W, 1)
+        y = self.conv1(y)                # (B, mip, H + W, 1)
+        y = self.bn1(y)
+        y = self.act(y)
+
+        # Split height and width attention
+        x_h_att, x_w_att = torch.split(y, [H, W], dim=2)
+        x_w_att = x_w_att.permute(0, 1, 3, 2)
+
+        # Generate attention maps
+        a_h = self.conv_h(x_h_att).sigmoid()  # (B, oup, H, 1)
+        a_w = self.conv_w(x_w_att).sigmoid()  # (B, oup, 1, W)
+
+        out = identity * a_h * a_w
+        return out
 
 
 class CBAM(nn.Module):

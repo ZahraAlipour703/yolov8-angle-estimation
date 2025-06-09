@@ -51,6 +51,8 @@ from .block import (
     HGBlock,
     HGStem,
     ImagePoolingAttn,
+    Index,
+    LightConv,
     MaxSigmoidAttnBlock,
     Proto,
     RepC3,
@@ -62,7 +64,9 @@ from .block import (
 )
 from .conv import (
     CBAM,
+    CoordAtt,
     ChannelAttention,
+    SpatialAttention,
     Concat,
     Conv,
     Conv2,
@@ -74,7 +78,6 @@ from .conv import (
     Index,
     LightConv,
     RepConv,
-    SpatialAttention,
 )
 from .head import (
     OBB,
@@ -103,6 +106,7 @@ from .transformer import (
 )
 
 __all__ = (
+    # Convolution & Attention
     "Conv",
     "Conv2",
     "LightConv",
@@ -115,7 +119,9 @@ __all__ = (
     "ChannelAttention",
     "SpatialAttention",
     "CBAM",
+    "CoordAtt",
     "Concat",
+    # Blocks
     "TransformerLayer",
     "TransformerBlock",
     "MLPBlock",
