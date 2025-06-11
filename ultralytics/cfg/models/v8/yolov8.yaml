@@ -1,13 +1,10 @@
 # Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
 
-# Ultralytics YOLOv8 object detection model with P3/8 - P5/32 outputs
-# Modified for real-time index-finger angle estimation:
-#  • nc set to 1
-#  • Coordinate Attention + CBAM added
-#  • Extra P2-only Detect head appended
+# YOLOv8 configuration with Coordinate Attention and CBAM
+# Custom setup for real-time index-finger angle estimation
 
 # Parameters
-nc: 1  # number of classes (hand/finger)
+nc: 1  # number of classes (e.g., hand/finger)
 scales:  # model compound scaling constants
   n: [0.33, 0.25, 1024]  # YOLOv8n
   s: [0.33, 0.50, 1024]  # YOLOv8s
@@ -15,7 +12,7 @@ scales:  # model compound scaling constants
   l: [1.00, 1.00, 512]   # YOLOv8l
   x: [1.00, 1.25, 512]   # YOLOv8x
 
-# YOLOv8 backbone (with CoordAtt + CBAM)
+# Backbone
 backbone:
   # [from, repeats, module, args]
   - [-1, 1, Conv, [64, 3, 2]]   # 0-P1/2
@@ -27,31 +24,31 @@ backbone:
   - [-1, 6, C2f, [512, True]]
   - [-1, 1, Conv, [1024, 3, 2]] # 7-P5/32
   - [-1, 3, C2f, [1024, True]]  # 8
-  - [-1, 1, CoordAtt, [1024]]   # 9 (insert Coordinate Attention)
-  - [-1, 1, CBAM, [1024]]       # 10 (insert CBAM)
+  - [-1, 1, CoordAtt, [1024]]   # 9 (custom)
+  - [-1, 1, CBAM, [1024]]       # 10 (custom)
   - [-1, 1, SPPF, [1024, 5]]    # 11
 
-# YOLOv8 head (with extra P2-only Detect)
+# Head
 head:
-  - [-1, 1, nn.Upsample, [None, 2, "nearest"]]
-  - [[-1, 6], 1, Concat, [1]]  # cat backbone P4
-  - [-1, 3, C2f, [512]]        # 12
+  - [-1, 1, nn.Upsample, [None, 2, "nearest"]]  # 12
+  - [[-1, 6], 1, Concat, [1]]                   # 13
+  - [-1, 3, C2f, [512]]                         # 14
 
-  - [-1, 1, nn.Upsample, [None, 2, "nearest"]]
-  - [[-1, 4], 1, Concat, [1]]  # cat backbone P3
-  - [-1, 3, C2f, [256]]        # 15 (P3/8-small)
+  - [-1, 1, nn.Upsample, [None, 2, "nearest"]]  # 15
+  - [[-1, 4], 1, Concat, [1]]                   # 16
+  - [-1, 3, C2f, [256]]                         # 17
 
-  - [-1, 1, Conv, [256, 3, 2]]
-  - [[-1, 12], 1, Concat, [1]] # cat head P4
-  - [-1, 3, C2f, [512]]        # 18 (P4/16-medium)
+  - [-1, 1, Conv, [256, 3, 2]]                  # 18
+  - [[-1, 14], 1, Concat, [1]]                  # 19
+  - [-1, 3, C2f, [512]]                         # 20
 
-  - [-1, 1, Conv, [512, 3, 2]]
-  - [[-1, 9], 1, Concat, [1]]  # cat head P5
-  - [-1, 3, C2f, [1024]]       # 21 (P5/32-large)
+  - [-1, 1, Conv, [512, 3, 2]]                  # 21
+  - [[-1, 11], 1, Concat, [1]]                  # 22
+  - [-1, 3, C2f, [1024]]                        # 23
 
-  # Main multi‐scale Detect (P3, P4, P5)
-  - [[15, 18, 21], 1, Detect, [nc]]
+  # Multi-scale Detect
+  - [[17, 20, 23], 1, Detect, [nc]]             # 24
 
-  # P2 expansion + Detect
-  - [2, 1, Conv, [128, 1, 1]]     # project P2's output (layer 2 has 128 channels)
-  - [[-1], 1, Detect, [nc]]       # Detect(P2)
+  # Optional: Extra P2-only head (for fine hand joints)
+  - [1, 1, Conv, [128, 1, 1]]                   # 25
+  - [[-1], 1, Detect, [nc]]                     # 26
