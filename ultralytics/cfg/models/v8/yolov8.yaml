@@ -53,4 +53,4 @@ head:
   - [[15, 18, 21], 1, Detect, [nc]]
 
   # Extra P2‐only head for fine fingertip/joint features
-  - [1, 1, Detect, [nc]]       # Detect(P2)
+  - [[1], 1, Detect, [nc]]       # Detect(P2)
