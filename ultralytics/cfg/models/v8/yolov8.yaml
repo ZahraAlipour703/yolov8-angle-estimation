@@ -32,7 +32,6 @@ backbone:
   - [-1, 1, SPPF, [1024, 5]]    # 11
 
 # YOLOv8 head (with extra P2-only Detect)
-# YOLOv8 head (with extra P2-only Detect)
 head:
   - [-1, 1, nn.Upsample, [None, 2, "nearest"]]
   - [[-1, 6], 1, Concat, [1]]  # cat backbone P4
@@ -54,6 +53,5 @@ head:
   - [[15, 18, 21], 1, Detect, [nc]]
 
   # P2 expansion + Detect
-  - [1, 1, Conv, [128, 1, 1]]     # project P2's 128 channels
+  - [2, 1, Conv, [128, 1, 1]]     # project P2's output (layer 2 has 128 channels)
   - [[-1], 1, Detect, [nc]]       # Detect(P2)
-
