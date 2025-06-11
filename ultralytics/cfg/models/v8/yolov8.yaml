@@ -32,6 +32,7 @@ backbone:
   - [-1, 1, SPPF, [1024, 5]]    # 11
 
 # YOLOv8 head (with extra P2-only Detect)
+# YOLOv8 head (with extra P2-only Detect)
 head:
   - [-1, 1, nn.Upsample, [None, 2, "nearest"]]
   - [[-1, 6], 1, Concat, [1]]  # cat backbone P4
@@ -51,8 +52,8 @@ head:
 
   # Main multi‐scale Detect (P3, P4, P5)
   - [[15, 18, 21], 1, Detect, [nc]]
-  - [1, 1, Conv, [1024, 1, 1]]     # expand P2→1024 channels
-  - [[-1], 1, Detect, [nc]]       # now P2 can be fed safely
 
-  # Extra P2‐only head for fine fingertip/joint features
-  # - [[1], 1, Detect, [nc]]       # Detect(P2)
+  # P2 expansion + Detect
+  - [1, 1, Conv, [128, 1, 1]]     # project P2's 128 channels
+  - [[-1], 1, Detect, [nc]]       # Detect(P2)
+
