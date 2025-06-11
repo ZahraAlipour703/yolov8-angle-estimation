@@ -51,6 +51,8 @@ head:
 
   # Main multi‐scale Detect (P3, P4, P5)
   - [[15, 18, 21], 1, Detect, [nc]]
+  - [1, 1, Conv, [1024, 1, 1]]     # expand P2→1024 channels
+  - [[-1], 1, Detect, [nc]]       # now P2 can be fed safely
 
   # Extra P2‐only head for fine fingertip/joint features
-  - [[1], 1, Detect, [nc]]       # Detect(P2)
+  # - [[1], 1, Detect, [nc]]       # Detect(P2)
