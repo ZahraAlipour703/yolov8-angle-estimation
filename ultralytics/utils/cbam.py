@@ -9,23 +9,24 @@ class CBAM(nn.Module):
     def __init__(self, channels, reduction=16, kernel_size=7):
         super().__init__()
         # Channel attention
-        self.mlp = nn.Sequential(
-            nn.Linear(channels, channels // reduction, bias=False),
-            nn.ReLU(),
-            nn.Linear(channels // reduction, channels, bias=False)
-        )
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.max_pool = nn.AdaptiveMaxPool2d(1)
+        self.conv1 = nn.Conv2d(channels, channels // reduction, 1, bias=False)
+        self.relu = nn.ReLU()
+        self.conv2 = nn.Conv2d(channels // reduction, channels, 1, bias=False)
         self.sigmoid_channel = nn.Sigmoid()
         # Spatial attention
         self.conv_spatial = nn.Conv2d(2, 1, kernel_size, padding=kernel_size//2, bias=False)
         self.sigmoid_spatial = nn.Sigmoid()
 
     def forward(self, x):
-        b, c, h, w = x.size()
         # Channel attention
-        avg_pool = x.mean((2,3), keepdim=False)
-        max_pool, _ = x.max((2,3), keepdim=False)
-        channel_att = self.mlp(avg_pool) + self.mlp(max_pool)
-        channel_att = self.sigmoid_channel(channel_att).view(b, c, 1, 1)
+        avg_pool = self.avg_pool(x)  # b, c, 1, 1
+        max_pool = self.max_pool(x)  # b, c, 1, 1
+        channel_att = self.conv1(avg_pool) + self.conv1(max_pool)
+        channel_att = self.relu(channel_att)
+        channel_att = self.conv2(channel_att)
+        channel_att = self.sigmoid_channel(channel_att)
         x = x * channel_att
         # Spatial attention
         avg_pool = x.mean(1, keepdim=True)
