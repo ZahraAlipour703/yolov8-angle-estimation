@@ -3,8 +3,8 @@
 # Optimized for hand pose estimation with P2 head for fine-grained finger joint detection
 
 # Parameters
-nc: 1  # number of classes (e.g., hand)
-kpt_shape: [21, 3]  # number of keypoints (21 for hand, with x, y, confidence)
+nc: 1  # number of classes (e.g., person with hand keypoints)
+kpt_shape: [21, 3]  # number of keypoints (21 for hand, [x, y, confidence])
 scale: s  # explicitly set scale to YOLOv8s
 scales:  # model compound scaling constants
   n: [0.33, 0.25, 1024]  # YOLOv8n
@@ -22,7 +22,7 @@ backbone:
   - [-1, 1, Conv, [256, 3, 2]]    # 3  → P3/8
   - [-1, 6, C2f, [256, True]]     # 4
   - [-1, 1, Conv, [512, 3, 2]]    # 5  → P4/16
-  - [-1, 6, C2f, [512, True]]     # 6
+  - [-1, 3, C2f, [512, True]]     # 6
   - [-1, 1, Conv, [1024, 3, 2]]   # 7  → P5/32
   - [-1, 3, C2f, [1024, True]]    # 8
   - [-1, 1, CoordAtt, [1024]]     # 9  (Coordinate Attention for spatial awareness)
@@ -48,4 +48,5 @@ head:
 
   # P2-only head for fine-grained finger joint detection
   - [2, 1, Conv, [256, 3, 1]]                   # 25: project P2 (128 channels from layer 2) to 256
-  - [-1, 1, Pose, [nc, kpt_shape]]              # 26: Pose head for P2 keypoint detection
+  - [[-1], 1, Detect, [nc]]                     # 26: Detect head for P2 bounding box detection
+  - [-1, 1, Pose, [nc, kpt_shape]]              # 27: Pose head for P2 keypoint detection
