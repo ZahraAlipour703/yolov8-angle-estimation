@@ -45,7 +45,3 @@ head:
 
   # Main multi-scale Pose head (P3, P4, P5)
   - [[17, 20, 23], 1, Pose, [nc, kpt_shape]]    # 24
-
-  # P2-only head for fine fingertip/joint features
-  - [1, 1, Conv, [256, 1, 1]]                   # 25: project 128→256 on P2
-  - [[-1], 1, Pose, [nc, kpt_shape]]            # 26: Pose(P2)
