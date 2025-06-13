@@ -1,44 +1,55 @@
-# Ultralytics 🚀 AGPL-3.0 License
-# YOLOv8s-pose with enhanced attention for finger angle estimation
-# Version: 1.1 (Medical Imaging Optimized)
+# Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
+# Real-time index-finger detection (YOLOv8s) with CoordAtt + CBAM
+#
+# This configuration augments YOLOv8s with two attention modules:
+#   - CoordAtt: improves spatial encoding by separately aggregating height and width context.
+#   - CBAM: applies sequential channel and spatial attention to refine feature maps.
+# These components are placed in series to explore complementary attention modeling:
+#   CoordAtt boosts positional awareness while CBAM focuses on discriminative feature refinement.
+# This dual-attention strategy increases compute slightly but may improve localization of small parts (e.g., fingertips).
+# Note: Channel widths are halved symmetrically for efficiency. Asymmetric scaling (e.g., wider P3/P4) may improve performance
+# for keypoint detection and should be considered in future ablations.
 
 # Parameters
-nc: 1  # single class (hand)
-kpt_shape: [4, 3]  # Keypoints: [PIP_joint, nail_base, distal_tip, MCP_joint]
-scales:
-  s: [0.33, 0.50, 1024]  # Official YOLOv8s scaling
+nc: 1                   # number of classes (hand/finger)
+scale: "s"              # explicitly select YOLOv8s topology
 
-# Backbone
+# Backbone (P1→P5), channel widths halved for "s" scale
 backbone:
-  - [-1, 1, Conv, [64, 3, 2]]     # 0-P1/2
-  - [-1, 1, Conv, [128, 3, 2]]    # 1-P2/4
-  - [-1, 3, C2f, [128, True]]      # 2
-  - [-1, 1, CBAM, [128]]           # 3  CBAM@P2 (128ch)
-  - [-1, 1, Conv, [256, 3, 2]]    # 4-P3/8
-  - [-1, 6, C2f, [256, True]]     # 5
-  - [-1, 1, CoordAtt, [256]]      # 6  CoordAtt@P3 (256ch)
-  - [-1, 1, Conv, [512, 3, 2]]    # 7-P4/16
-  - [-1, 6, C2f, [512, True]]     # 8
-  - [-1, 1, Conv, [512, 3, 2]]    # 9-P5/32
-  - [-1, 3, C2f, [512, True]]     # 10
-  - [-1, 1, SPPF, [512, 5]]       # 11
+  - [-1, 1, Conv,    [32,   3, 2]]   # 0 → P1/2 (32)
+  - [-1, 1, Conv,    [64,   3, 2]]   # 1 → P2/4 (64)
+  - [-1, 3, C2f,     [64,  True]]    # 2 → stays at 64
+  - [-1, 1, Conv,    [128,  3, 2]]   # 3 → P3/8 (128)
+  - [-1, 6, C2f,     [128, True]]    # 4
+  - [-1, 1, Conv,    [256,  3, 2]]   # 5 → P4/16 (256)
+  - [-1, 6, C2f,     [256, True]]    # 6
+  - [-1, 1, Conv,    [512,  3, 2]]   # 7 → P5/32 (512)
+  - [-1, 3, C2f,     [512, True]]    # 8
+  - [-1, 1, CoordAtt,[512]]          # 9 (Coordinate Attention)
+  - [-1, 1, CBAM,    [512]]          #10 (CBAM)
+  - [-1, 1, SPPF,    [512,5]]        #11
 
-# Head
+# Head (FPN + Detect) with matching channel halves
 head:
-  - [-1, 1, nn.Upsample, [None, 2, "nearest"]]  # 12
-  - [[-1, 8], 1, Concat, [1]]                   # 13 -> P4
-  - [-1, 3, C2f, [512]]                         # 14
-  - [-1, 1, nn.Upsample, [None, 2, "nearest"]]  # 15
-  - [[-1, 5], 1, Concat, [1]]                   # 16 -> P3
-  - [-1, 3, C2f, [256]]                         # 17
-  - [-1, 1, Conv, [256, 3, 2]]                  # 18 -> P4
-  - [[-1, 14], 1, Concat, [1]]                  # 19
-  - [-1, 3, C2f, [512]]                         # 20
-  - [-1, 1, Conv, [512, 3, 2]]                  # 21 -> P5
-  - [[-1, 11], 1, Concat, [1]]                  # 22
-  - [-1, 3, C2f, [512]]                         # 23
-  - [[17, 20, 23], 1, Pose, [nc, kpt_shape]]    # 24: P3/P4/P5 outputs
+  # P5 → P4
+  - [-1, 1, nn.Upsample, [None,2,'nearest']]  #12
+  - [[12,6],1, Concat, [1]]                   #13: cat P4(256) + upP5
+  - [-1,3, C2f, [256, True]]                  #14
 
-  # P2 High-Resolution Head (Medical Innovation)
-  - [3, 1, Conv, [128, 3, 1]]                  # 25: From CBAM@P2
-  - [[25], 1, Pose, [nc, kpt_shape]]            # 26: Dedicated finger joint head
+  # P4 → P3
+  - [-1,1, nn.Upsample, [None,2,'nearest']]   #15
+  - [[15,4],1, Concat, [1]]                   #16: cat P3(128) + upP4
+  - [-1,3, C2f, [128, True]]                  #17
+
+  # P3 → P4
+  - [-1,1, Conv, [128,3,2]]                   #18
+  - [[18,14],1, Concat, [1]]                  #19: cat downP3 + skipP4
+  - [-1,3, C2f, [256, True]]                  #20
+
+  # P4 → P5
+  - [-1,1, Conv, [256,3,2]]                   #21
+  - [[21,11],1, Concat, [1]]                  #22: cat downP4 + skipP5
+  - [-1,3, C2f, [512, True]]                  #23
+
+  # Detect heads on P3, P4, P5
+  - [[17,20,23],1, Detect, [nc]]              #24
