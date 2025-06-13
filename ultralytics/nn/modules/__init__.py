@@ -68,6 +68,8 @@ from .conv import (
     Concat,
     Conv,
     Conv2,
+    CBAM,
+    CoordAtt,
     ConvTranspose,
     DWConv,
     DWConvTranspose2d,
@@ -77,8 +79,7 @@ from .conv import (
     LightConv,
     RepConv,
 )
-from .cbam import CBAM
-from .coord_attention import CoordAtt
+
 from .head import (
     OBB,
     Classify,
