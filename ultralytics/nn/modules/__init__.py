@@ -63,8 +63,6 @@ from .block import (
     TorchVision,
 )
 from .conv import (
-    CBAM,
-    CoordAtt,
     ChannelAttention,
     SpatialAttention,
     Concat,
@@ -79,6 +77,8 @@ from .conv import (
     LightConv,
     RepConv,
 )
+from .cbam import CBAM
+from .coord_attention import CoordAtt
 from .head import (
     OBB,
     Classify,
