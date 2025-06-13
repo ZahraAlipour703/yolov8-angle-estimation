@@ -1,60 +1,58 @@
 # Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
-# Optimized real-time index-finger pose (YOLOv8s) with enhanced attention, transformer fusion, and robust P2/P4 keypoint heads
+# Optimized real-time index-finger pose (YOLOv8s) with robust P2/P4 keypoint heads
 
 # Parameters
 nc: 1                   # number of classes (hand/finger)
 kpt_shape: [21, 3]     # 21 hand keypoints (x, y, confidence)
 scale: "s"             # explicitly select YOLOv8s topology
 
-# Backbone (P1→P5) with early CBAM, mid-level CoordAtt, and SPPF
+# Backbone (P1→P5) with CBAM and CoordAtt
 backbone:
   - [-1, 1, Conv,    [32,   3, 2]]   # 0 → P1/2 (32 channels)
   - [-1, 1, Conv,    [64,   3, 2]]   # 1 → P2/4 (64 channels)
-  - [-1, 1, CBAM,    [64,  8]]       # 2 → tiny CBAM at P2 for edge/textural attention
-  - [-1, 3, C2f,     [64,   True]]   # 3 → feature consistency post-CBAM
+  - [-1, 1, CBAM,    [64,  8]]       # 2 → channel + spatial attention at P2
+  - [-1, 3, C2f,     [64,   True]]   # 3 → refine P2 features
   - [-1, 1, Conv,    [128,  3, 2]]   # 4 → P3/8 (128 channels)
-  - [-1, 1, CoordAtt,[128]]          # 5 → Coordinate Attention at P3
-  - [-1, 6, C2f,     [128,  True]]   # 6 → enriched P3 features
+  - [-1, 1, CoordAtt,[128]]          # 5 → positional attention at P3
+  - [-1, 6, C2f,     [128,  True]]   # 6 → refine P3 features
   - [-1, 1, Conv,    [256,  3, 2]]   # 7 → P4/16 (256 channels)
-  - [-1, 1, TransformerBlock, [256, 4]]  # 8 → lightweight transformer fusion at P4
-  - [-1, 6, C2f,     [256,  True]]   # 9 → enriched P4 features
-  - [-1, 1, Conv,    [512,  3, 2]]   #10 → P5/32 (512 channels)
-  - [-1, 1, SPPF,    [512,   5]]     #11 → spatial pooling at P5
+  - [-1, 6, C2f,     [256,  True]]   # 8 → enrich P4 features
+  - [-1, 1, Conv,    [512,  3, 2]]   # 9 → P5/32 (512 channels)
+  - [-1, 1, SPPF,    [512,   5]]     # 10 → spatial pooling at P5
 
-# Head (FPN + Detect + multi-scale Pose)
+# Head (FPN + Detect + Pose)
 head:
   # P5 → P4
-  - [-1, 1, nn.Upsample, [None,2,'nearest']]   #12
-  - [[12,9],1, Concat, [1]]                     #13: merge with P4
-  - [-1,3, C2f, [256, True]]                    #14
+  - [-1, 1, nn.Upsample, [None,2,'nearest']]   #11
+  - [[11,8],1, Concat, [1]]                    #12: merge with P4
+  - [-1,3, C2f, [256, True]]                   #13
 
   # P4 → P3
-  - [-1,1, nn.Upsample, [None,2,'nearest']]     #15
-  - [[15,6],1, Concat, [1]]                     #16: merge with P3
-  - [-1,3, C2f, [128, True]]                    #17
+  - [-1,1, nn.Upsample, [None,2,'nearest']]    #14
+  - [[14,6],1, Concat, [1]]                    #15: merge with P3
+  - [-1,3, C2f, [128, True]]                   #16
 
   # P3 → P4 downsample
-  - [-1,1, Conv, [128,3,2]]                     #18
-  - [[18,14],1, Concat, [1]]                    #19
-  - [-1,3, C2f, [256, True]]                    #20
+  - [-1,1, Conv, [128,3,2]]                    #17
+  - [[17,13],1, Concat, [1]]                   #18
+  - [-1,3, C2f, [256, True]]                   #19
 
   # P4 → P5 downsample
-  - [-1,1, Conv, [256,3,2]]                     #21
-  - [[21,11],1, Concat, [1]]                    #22
-  - [-1,3, C2f, [512, True]]                    #23
+  - [-1,1, Conv, [256,3,2]]                    #20
+  - [[20,10],1, Concat, [1]]                   #21
+  - [-1,3, C2f, [512, True]]                   #22
 
-  # Multi-scale detection heads (P3, P4, P5)
-  - [[17,20,23], 1, Detect, [nc]]               #24
+  # Detection heads on P3, P4, P5
+  - [[16,19,22], 1, Detect, [nc]]              #23
 
-  # High-resolution P2 keypoint head with DWConv-5x5 bottleneck
-  - [3, 1, DWConv, [64, 5, 1]]                   #25: depthwise 5×5 on P2
-  - [-1, 1, Conv, [64, 1, 1]]                    #26: pointwise projection
-  - [[26],1, Pose, [nc, kpt_shape]]              #27: P2 keypoint regression
+  # High-resolution P2 keypoint head
+  - [3, 1, Conv, [64, 3, 1]]                   #24: project P2
+  - [[24],1, Pose, [nc, kpt_shape]]            #25: P2 keypoint regression
 
-  # Shallow P4 keypoint branch (backup on occlusion)
-  - [9, 1, Conv, [256, 1, 1]]                    #28: project enriched P4
-  - [-1,1, nn.ReLU, []]                          #29
-  - [-1,1, Conv, [256,1,1]]                      #30: refine
-  - [[30],1, Pose, [nc, kpt_shape]]              #31: P4 keypoint regression
+  # Backup P4 keypoint head
+  - [8, 1, Conv, [256, 1, 1]]                  #26: project P4
+  - [-1,1, nn.ReLU, []]                        #27
+  - [-1,1, Conv, [256,1,1]]                    #28: refine P4
+  - [[28],1, Pose, [nc, kpt_shape]]            #29: P4 keypoint regression
 
-# -- End of enhanced, robust model configuration --
+# End of streamlined YOLOv8s-pose configuration
