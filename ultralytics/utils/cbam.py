@@ -1,3 +1,6 @@
+import torch
+import torch.nn as nn
+
 class CBAM(nn.Module):
     def __init__(self, channels, reduction=16, kernel_size=7):
         super().__init__()
