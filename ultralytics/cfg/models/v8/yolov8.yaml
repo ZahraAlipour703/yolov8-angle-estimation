@@ -1,55 +1,53 @@
 # Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
-# Real-time index-finger detection (YOLOv8s) with CoordAtt + CBAM
-#
-# This configuration augments YOLOv8s with two attention modules:
-#   - CoordAtt: improves spatial encoding by separately aggregating height and width context.
-#   - CBAM: applies sequential channel and spatial attention to refine feature maps.
-# These components are placed in series to explore complementary attention modeling:
-#   CoordAtt boosts positional awareness while CBAM focuses on discriminative feature refinement.
-# This dual-attention strategy increases compute slightly but may improve localization of small parts (e.g., fingertips).
-# Note: Channel widths are halved symmetrically for efficiency. Asymmetric scaling (e.g., wider P3/P4) may improve performance
-# for keypoint detection and should be considered in future ablations.
+# Optimized real-time index-finger pose (YOLOv8s) with streamlined attention and robust P2 keypoint head
 
 # Parameters
 nc: 1                   # number of classes (hand/finger)
-scale: "s"              # explicitly select YOLOv8s topology
+kpt_shape: [21, 3]     # 21 hand keypoints (x, y, confidence)
+scale: "s"             # explicitly select YOLOv8s topology
 
-# Backbone (P1→P5), channel widths halved for "s" scale
+# Backbone (P1→P5) with mid-level attention at P3 and lightweight pooling at P5
 backbone:
-  - [-1, 1, Conv,    [32,   3, 2]]   # 0 → P1/2 (32)
-  - [-1, 1, Conv,    [64,   3, 2]]   # 1 → P2/4 (64)
-  - [-1, 3, C2f,     [64,  True]]    # 2 → stays at 64
-  - [-1, 1, Conv,    [128,  3, 2]]   # 3 → P3/8 (128)
-  - [-1, 6, C2f,     [128, True]]    # 4
-  - [-1, 1, Conv,    [256,  3, 2]]   # 5 → P4/16 (256)
-  - [-1, 6, C2f,     [256, True]]    # 6
-  - [-1, 1, Conv,    [512,  3, 2]]   # 7 → P5/32 (512)
-  - [-1, 3, C2f,     [512, True]]    # 8
-  - [-1, 1, CoordAtt,[512]]          # 9 (Coordinate Attention)
-  - [-1, 1, CBAM,    [512]]          #10 (CBAM)
-  - [-1, 1, SPPF,    [512,5]]        #11
+  - [-1, 1, Conv,    [32,   3, 2]]   # 0 → P1/2 (32 channels)
+  - [-1, 1, Conv,    [64,   3, 2]]   # 1 → P2/4 (64 channels)
+  - [-1, 3, C2f,     [64,   True]]   # 2 → feature consistency at 64
+  - [-1, 1, Conv,    [128,  3, 2]]   # 3 → P3/8 (128 channels)
+  - [-1, 1, CoordAtt,[128]]          # 4 → Coordinate Attention at P3
+  - [-1, 6, C2f,     [128,  True]]   # 5 → enriched P3
+  - [-1, 1, Conv,    [256,  3, 2]]   # 6 → P4/16 (256 channels)
+  - [-1, 6, C2f,     [256,  True]]   # 7 → enriched P4
+  - [-1, 1, Conv,    [512,  3, 2]]   # 8 → P5/32 (512 channels)
+  - [-1, 1, SPPF,    [512,   5]]     # 9 → spatial pooling at P5
 
-# Head (FPN + Detect) with matching channel halves
+# Head (FPN + Detect) with robust P2 keypoint branch
 head:
-  # P5 → P4
-  - [-1, 1, nn.Upsample, [None,2,'nearest']]  #12
-  - [[12,6],1, Concat, [1]]                   #13: cat P4(256) + upP5
-  - [-1,3, C2f, [256, True]]                  #14
+  # P5 → P4 upsample + concat
+  - [-1, 1, nn.Upsample, [None, 2, 'nearest']]   # 10
+  - [[10, 7], 1, Concat, [1]]                     # 11: merge with P4 features
+  - [-1, 3, C2f, [256, True]]                    # 12
 
-  # P4 → P3
-  - [-1,1, nn.Upsample, [None,2,'nearest']]   #15
-  - [[15,4],1, Concat, [1]]                   #16: cat P3(128) + upP4
-  - [-1,3, C2f, [128, True]]                  #17
+  # P4 → P3 upsample + concat
+  - [-1, 1, nn.Upsample, [None, 2, 'nearest']]   # 13
+  - [[13, 5], 1, Concat, [1]]                     # 14: merge with P3 enriched
+  - [-1, 3, C2f, [128, True]]                    # 15
 
-  # P3 → P4
-  - [-1,1, Conv, [128,3,2]]                   #18
-  - [[18,14],1, Concat, [1]]                  #19: cat downP3 + skipP4
-  - [-1,3, C2f, [256, True]]                  #20
+  # P3 → P4 downsample + concat
+  - [-1, 1, Conv, [128, 3, 2]]                   # 16
+  - [[16, 12], 1, Concat, [1]]                    # 17
+  - [-1, 3, C2f, [256, True]]                    # 18
 
-  # P4 → P5
-  - [-1,1, Conv, [256,3,2]]                   #21
-  - [[21,11],1, Concat, [1]]                  #22: cat downP4 + skipP5
-  - [-1,3, C2f, [512, True]]                  #23
+  # P4 → P5 downsample + concat
+  - [-1, 1, Conv, [256, 3, 2]]                   # 19
+  - [[19, 9 ], 1, Concat, [1]]                    # 20
+  - [-1, 3, C2f, [512, True]]                    # 21
 
-  # Detect heads on P3, P4, P5
-  - [[17,20,23],1, Detect, [nc]]              #24
+  # Multi-scale detection heads (P3, P4, P5)
+  - [[15, 18, 21], 1, Detect, [nc]]               # 22
+
+  # High-resolution P2 keypoint head with residual bottleneck
+  - [2,   1, Conv, [64, 3, 1]]                    # 23: initial P2 projection
+  - [-1, 1, nn.ReLU, []]                          # 24: non-linearity
+  - [-1, 1, Conv, [64, 3, 1]]                     # 25: refinement
+  - [[25], 1, Pose, [nc, kpt_shape]]              # 26: P2-based keypoint regression
+
+# -- End of optimized model configuration --
