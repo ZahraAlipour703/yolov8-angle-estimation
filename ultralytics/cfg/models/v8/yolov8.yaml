@@ -53,10 +53,12 @@ head:
 
   # High-resolution P2 keypoint head (index finger joints)
   - [3, 1, Conv, [64, 3, 1]]                   # 24: project P2 features
-  - [[24], 1, Pose, [nc, kpt_shape]]           # 25: P2 Pose head
+  - [[24], 1, Pose, [nc, kpt_shape]]          # 25: P2 Pose head
 
   # Contextual P4 keypoint head (refined context)
   - [8, 1, Conv, [256, 1, 1]]                  # 26: project P4 features
   - [-1,1, nn.ReLU, []]                        # 27
   - [-1,1, Conv, [256,1,1]]                    # 28: refine P4 features
-  - [[28],1, Pose, [nc, kpt_shape]] 
+  - [[28],1, Pose, [nc, kpt_shape]]           # 29: P4 Pose head
+
+# End of efficient YOLOv8n-pose configuration
