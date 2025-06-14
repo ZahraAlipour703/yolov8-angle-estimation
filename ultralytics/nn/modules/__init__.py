@@ -70,6 +70,8 @@ from .conv import (
     Conv2,
     CBAM,
     CoordAtt,
+    SE,
+    ECA
     ConvTranspose,
     DWConv,
     DWConvTranspose2d,
