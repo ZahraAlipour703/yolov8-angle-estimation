@@ -22,3 +22,4 @@ class GhostC2f(nn.Module):
         y2 = self.m(y1)
         out = self.cv2(torch.cat((y1, y2), 1))
         return out + x if self.add else out
+# ll
