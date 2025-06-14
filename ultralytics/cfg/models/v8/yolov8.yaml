@@ -1,16 +1,20 @@
 # Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
 # Optimized real-time index-finger pose (YOLOv8s) with robust P2/P4 keypoint heads
 
+# ------------------------------------------
 # Parameters
+# ------------------------------------------
 nc: 1                   # number of classes (hand/finger)
 kpt_shape: [21, 3]     # 21 hand keypoints (x, y, confidence)
 scale: "s"             # explicitly select YOLOv8s topology
 
+# ------------------------------------------
 # Backbone (P1→P5) with CBAM and CoordAtt
+# ------------------------------------------
 backbone:
   - [-1, 1, Conv,    [32,   3, 2]]   # 0 → P1/2 (32 channels)
   - [-1, 1, Conv,    [64,   3, 2]]   # 1 → P2/4 (64 channels)
-  - [-1, 1, CBAM,    [64,  8]]       # 2 → channel + spatial attention at P2
+  - [-1, 1, CBAM,    [64,   8]]      # 2 → channel+spatial attention at P2
   - [-1, 3, C2f,     [64,   True]]   # 3 → refine P2 features
   - [-1, 1, Conv,    [128,  3, 2]]   # 4 → P3/8 (128 channels)
   - [-1, 1, CoordAtt,[128]]          # 5 → positional attention at P3
@@ -20,39 +24,41 @@ backbone:
   - [-1, 1, Conv,    [512,  3, 2]]   # 9 → P5/32 (512 channels)
   - [-1, 1, SPPF,    [512,   5]]     # 10 → spatial pooling at P5
 
+# ------------------------------------------
 # Head (FPN + Detect + Pose)
+# ------------------------------------------
 head:
   # P5 → P4
-  - [-1, 1, nn.Upsample, [None,2,'nearest']]   #11
-  - [[11,8],1, Concat, [1]]                    #12: merge with P4
-  - [-1,3, C2f, [256, True]]                   #13
+  - [-1, 1, nn.Upsample, [None,2,'nearest']]  # 11
+  - [[11,8],1, Concat, [1]]                   # 12: merge with P4
+  - [-1,3, C2f, [256, True]]                  # 13
 
   # P4 → P3
-  - [-1,1, nn.Upsample, [None,2,'nearest']]    #14
-  - [[14,6],1, Concat, [1]]                    #15: merge with P3
-  - [-1,3, C2f, [128, True]]                   #16
+  - [-1,1, nn.Upsample, [None,2,'nearest']]   # 14
+  - [[14,6],1, Concat, [1]]                   # 15: merge with P3
+  - [-1,3, C2f, [128, True]]                  # 16
 
   # P3 → P4 downsample
-  - [-1,1, Conv, [128,3,2]]                    #17
-  - [[17,13],1, Concat, [1]]                   #18
-  - [-1,3, C2f, [256, True]]                   #19
+  - [-1,1, Conv, [128,3,2]]                   # 17
+  - [[17,13],1, Concat, [1]]                  # 18
+  - [-1,3, C2f, [256, True]]                  # 19
 
   # P4 → P5 downsample
-  - [-1,1, Conv, [256,3,2]]                    #20
-  - [[20,10],1, Concat, [1]]                   #21
-  - [-1,3, C2f, [512, True]]                   #22
+  - [-1,1, Conv, [256,3,2]]                   # 20
+  - [[20,10],1, Concat, [1]]                  # 21
+  - [-1,3, C2f, [512, True]]                  # 22
 
   # Detection heads on P3, P4, P5
-  - [[16,19,22], 1, Detect, [nc]]              #23
+  - [[16,19,22], 1, Detect, [nc]]             # 23
 
   # High-resolution P2 keypoint head
-  - [3, 1, Conv, [64, 3, 1]]                   #24: project P2
-  - [[24],1, Pose, [nc, kpt_shape]]            #25: P2 keypoint regression
+  - [3, 1, Conv, [64, 3, 1]]                   # 24: project P2
+  - [[24],1, Pose, [nc, kpt_shape]]            # 25: P2 keypoint regression
 
-  # Backup P4 keypoint head
-  - [8, 1, Conv, [256, 1, 1]]                  #26: project P4
-  - [-1,1, nn.ReLU, []]                        #27
-  - [-1,1, Conv, [256,1,1]]                    #28: refine P4
-  - [[28],1, Pose, [nc, kpt_shape]]            #29: P4 keypoint regression
+  # Lightweight P4 keypoint head (contextual refinement)
+  - [8, 1, Conv, [256, 1, 1]]                  # 26: project P4 features
+  - [-1,1, nn.ReLU, []]                        # 27
+  - [-1,1, Conv, [256,1,1]]                    # 28: refine P4 features
+  - [[28],1, Pose, [nc, kpt_shape]]            # 29: P4 keypoint regression
 
-# End of streamlined YOLOv8s-pose configuration
+# End of optimized YOLOv8s-pose configuration
