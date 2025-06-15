@@ -124,6 +124,7 @@ __all__ = (
     "GhostC2f",
     "ECA",
     "SE",
+    "SimAM",
     "ChannelAttention",
     "SpatialAttention",
     "CBAM",
