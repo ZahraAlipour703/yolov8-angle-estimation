@@ -1,12 +1,14 @@
 # Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
-# Ultra‑light YOLOv8n‑pose v3: further streamlined for <9 GFLOPs, ~8M params
-#  • target: real‑time hand + index‑finger tracking with minimal footprint
+# Ultra -light YOLOv8n -pose v3: further streamlined for <9 GFLOPs, ~8M params
+#  • target: real -time hand + index -finger tracking with minimal footprint
 
 nc: 1               # single class (hand)
 kpt_shape: [21,3]
 scale: "n"        # YOLOv8n nano topology
 
-# Backbone (P1→P5) with minimal Ghost modules and no repeats
+# Backbone (P1→P5) with DWConv and ECA attention
+#  • DWConv (depthwise separable convolution) and ECA (Efficient Channel Attention)
+#    reduce computational cost significantly over standard convolutions.
 backbone:
   - [-1, 1, Conv,      [16, 3, 2]]    # 0 → P1/2
   - [-1, 1, GhostConv, [32, 3, 2]]    # 1 → P2/4
@@ -41,7 +43,7 @@ head:
   # Detect head (P3,P4,P5)
   - [[12,15,18],1, Detect, [nc]]              #19
 
-  # Single ultra‑light Pose head (shared feature)
+  # Single ultra -light Pose head (shared feature)
   - [-1,1, Conv, [32, 1,1]]                   #20
   - [[20],1, Pose, [nc, kpt_shape]]           #21
 
