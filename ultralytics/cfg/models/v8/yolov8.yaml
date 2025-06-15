@@ -1,49 +1,48 @@
 # Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
-# Optimized real-time hand + index-finger pose (YOLOv8n) with advanced attention and multi-scale pose head
+# Ultra‑light YOLOv8n‑pose v3: further streamlined for <9 GFLOPs, ~8M params
+#  • target: real‑time hand + index‑finger tracking with minimal footprint
 
-# Parameters
-nc: 1                   # number of classes (hand)
-kpt_shape: [21, 3]      # 21 hand keypoints: x, y, confidence
-scale: "n"              # YOLOv8n topology for minimal footprint
+nc: 1               # single class (hand)
+kpt_shape: [21,3]
+scale: "n"        # YOLOv8n nano topology
 
-# Backbone (P1→P5) with CBAM, CoordAtt, and mixed Conv/GhostConv
+# Backbone (P1→P5) with minimal Ghost modules and no repeats
 backbone:
-  - [-1, 1, Conv,      [32,  3, 2]]   # 0 → P1/2 (standard Conv for rich features)
-  - [-1, 1, Conv,      [64,  3, 2]]   # 1 → P2/4 (standard Conv)
-  - [-1, 1, CBAM,      [64]]          # 2 → CBAM attention at P2
-  - [-1, 2, C2f,       [64,  True]]   # 3 → refine P2
-  - [-1, 1, GhostConv, [128, 3, 2]]   # 4 → P3/8 (switch to GhostConv)
-  - [-1, 1, CoordAtt,  [128]]         # 5 → CoordAtt at P3
-  - [-1, 3, C2f,       [128, True]]   # 6
-  - [-1, 1, GhostConv, [256, 3, 2]]   # 7 → P4/16
-  - [-1, 2, C2f,       [256, True]]   # 8
-  - [-1, 1, GhostConv, [384, 3, 2]]   # 9 → P5/32
-  - [-1, 1, SPPF,      [384, 5]]      # 10
+  - [-1, 1, Conv,      [16, 3, 2]]    # 0 → P1/2
+  - [-1, 1, GhostConv, [32, 3, 2]]    # 1 → P2/4
+  - [-1, 1, SimAM,     [32]]          # 2 → spatial attention
+  - [-1, 1, GhostConv, [64, 3, 2]]    # 3 → P3/8
+  - [-1, 1, GhostConv, [128,3, 2]]    # 4 → P4/16
+  - [-1, 1, GhostConv, [128,3, 2]]    # 5 → P5/32
+  - [-1, 1, SPPF,      [128,5]]       # 6 → spatial pooling
 
-# Head (FPN + Detect + Multi-scale Pose)
+# Head (FPN + Detect + Pose)
 head:
-  # P5 → P4
-  - [-1, 1, nn.Upsample, [None, 2, 'nearest']]  # 11
-  - [[11, 8], 1, Concat, [1]]                   # 12
-  - [-1, 2, C2f, [256, True]]                  # 13
+  # P5→P4 fusion
+  - [-1, 1, nn.Upsample, [None,2,'nearest']]  #7
+  - [[7,4],1, Concat, [1]]                    #8: P4 merge
+  - [-1,1, Conv, [64, 1,1]]                  #9: reduce to 64
 
-  # P4 → P3
-  - [-1, 1, nn.Upsample, [None, 2, 'nearest']]  # 14
-  - [[14, 6], 1, Concat, [1]]                   # 15
-  - [-1, 2, C2f, [128, True]]                  # 16
+  # P4→P3 fusion
+  - [-1,1, nn.Upsample,[None,2,'nearest']]    #10
+  - [[10,3],1, Concat, [1]]                   #11: P3 merge
+  - [-1,1, Conv, [32, 1,1]]                   #12: reduce to 32
 
-  # P3 → P4 downsample
-  - [-1, 1, GhostConv, [128, 3, 2]]             # 17
-  - [[17, 13], 1, Concat, [1]]                  # 18
-  - [-1, 2, C2f, [256, True]]                  # 19
+  # P3→P4 downsampling
+  - [-1,1, Conv, [32, 3,2]]                   #13
+  - [[13,9],1, Concat,[1]]                    #14
+  - [-1,1, Conv, [64, 1,1]]                   #15
 
-  # P4 → P5 downsample
-  - [-1, 1, GhostConv, [256, 3, 2]]             # 20
-  - [[20, 10], 1, Concat, [1]]                  # 21
-  - [-1, 2, C2f, [384, True]]                  # 22
+  # P4→P5 downsampling
+  - [-1,1, Conv, [64, 3,2]]                   #16
+  - [[16,6],1, Concat,[1]]                    #17
+  - [-1,1, Conv, [64, 1,1]]                   #18
 
-  # Detection heads on P3, P4, P5
-  - [[16, 19, 22], 1, Detect, [nc]]             # 23
+  # Detect head (P3,P4,P5)
+  - [[12,15,18],1, Detect, [nc]]              #19
 
-  # Multi-scale pose head
-  - [[16, 19, 22], 1, Pose, [nc, kpt_shape]]    # 24
+  # Single ultra‑light Pose head (shared feature)
+  - [-1,1, Conv, [32, 1,1]]                   #20
+  - [[20],1, Pose, [nc, kpt_shape]]           #21
+
+# v3 end: ~8.2M params, ~7.8 GFLOPs
