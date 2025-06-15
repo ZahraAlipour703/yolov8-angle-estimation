@@ -1,48 +1,32 @@
-# Ultralytics 🚀 AGPL‑3.0 License
-# Ultra‑light YOLOv8n‑pose for real‑time hand + index‑finger tracking
-
-nc: 1                    # 1 class: hand
-kpt_shape: [5, 3]       # e.g. 5 keypoints on index finger: PIP, DIP, TIP, etc.
-scale: "n"              # YOLOv8n
+nc: 1
+kpt_shape: [21, 3]
+scale: "s"  # Upgrade to YOLOv8s
 
 backbone:
-  # [from, num, module, args]
-  - [-1, 1, Conv,    [32, 3, 2]]    # 0 → P1/2
-  - [-1, 1, Conv,    [64, 3, 2]]    # 1 → P2/4
-  - [-1, 2, C2f,     [64, True]]    # 2 → refine P2
-  - [-1, 1, Conv,    [128, 3, 2]]   # 3 → P3/8
-  - [-1, 4, C2f,     [128, True]]   # 4 → refine P3
-  - [-1, 1, Conv,    [256, 3, 2]]   # 5 → P4/16
-  - [-1, 4, C2f,     [256, True]]   # 6 → refine P4
-  - [-1, 1, Conv,    [512, 3, 2]]   # 7 → P5/32
-  - [-1, 2, C2f,     [512, True]]   # 8 → refine P5
-  - [-1, 1, SPPF,    [512, 5]]      # 9 → pool
+  - [-1, 1, Conv, [64, 3, 2]]         # 0 → P1/2
+  - [-1, 1, Conv, [128, 3, 2]]        # 1 → P2/4
+  - [-1, 1, CoordAtt, [128]]          # 2 → Enhanced attention
+  - [-1, 2, C2f, [128, True]]         # 3
+  - [-1, 1, GhostConv, [256, 3, 2]]   # 4 → P3/8
+  - [-1, 1, CoordAtt, [256]]          # 5
+  - [-1, 3, C2f, [256, True]]         # 6
+  - [-1, 1, GhostConv, [512, 3, 2]]   # 7 → P4/16
+  - [-1, 2, C2f, [512, True]]         # 8
+  - [-1, 1, GhostConv, [768, 3, 2]]   # 9 → P5/32
+  - [-1, 1, SPPF, [768, 5]]           # 10
 
 head:
-  # FPN merging P5→P4→P3
-  - [-1, 1, nn.Upsample, [None,2,'nearest']]  #10
-  - [[10,6],1, Concat, [1]]                   #11
-  - [-1,2, C2f,     [256, True]]              #12
-
-  - [-1, 1, nn.Upsample, [None,2,'nearest']]  #13
-  - [[13,4],1, Concat, [1]]                   #14
-  - [-1,2, C2f,     [128, True]]              #15
-
-  - [-1, 1, Conv,  [128,3,2]]                 #16
-  - [[16,12],1, Concat, [1]]                  #17
-  - [-1,2, C2f,     [256, True]]              #18
-
-  - [-1, 1, Conv,  [256,3,2]]                 #19
-  - [[19,9],1, Concat, [1]]                   #20
-  - [-1,2, C2f,     [512, True]]              #21
-
-  # Detection on P3, P4, P5
-  - [[15,18,21],1, Detect, [nc]]              #22
-
-  # **High‑res P2 keypoint head**  
-  - [2, 1, Conv,    [64, 3, 1]]               #23
-  - [[23],1, Pose,  [nc, kpt_shape]]          #24
-
-  # **Unified Pose head** (global context)
-  - [-1,1, Conv,    [128,1,1]]                #25
-  - [[25],1, Pose,  [nc, kpt_shape]]          #26
+  - [-1, 1, nn.Upsample, [None, 2, 'nearest']]  # 11
+  - [[11, 8], 1, Concat, [1]]                   # 12
+  - [-1, 2, C2f, [512, True]]                  # 13
+  - [-1, 1, nn.Upsample, [None, 2, 'nearest']] # 14
+  - [[14, 6], 1, Concat, [1]]                  # 15
+  - [-1, 2, C2f, [256, True]]                  # 16
+  - [-1, 1, GhostConv, [256, 3, 2]]            # 17
+  - [[17, 13], 1, Concat, [1]]                 # 18
+  - [-1, 2, C2f, [512, True]]                  # 19
+  - [-1, 1, GhostConv, [512, 3, 2]]            # 20
+  - [[20, 10], 1, Concat, [1]]                 # 21
+  - [-1, 2, C2f, [768, True]]                  # 22
+  - [[16, 19, 22], 1, Detect, [nc]]            # 23
+  - [[16, 19, 22], 1, Pose, [nc, kpt_shape]]   # 24
