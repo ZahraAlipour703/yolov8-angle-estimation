@@ -1,59 +1,48 @@
-# Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
+# Ultralytics 🚀 AGPL‑3.0 License
 # Ultra‑light YOLOv8n‑pose for real‑time hand + index‑finger tracking
-#  • minimal GFLOPs, streamlined keypoint head, Ghost & SimAM modules
 
-# ------------------------------------------
-# Parameters
-# ------------------------------------------
-nc: 1                   # single class (hand)
-kpt_shape: [21,3]      # 21 hand keypoints: x, y, confidence
-scale: "n"             # YOLOv8n nano topology
+nc: 1                    # 1 class: hand
+kpt_shape: [5, 3]       # e.g. 5 keypoints on index finger: PIP, DIP, TIP, etc.
+scale: "n"              # YOLOv8n
 
-# ------------------------------------------
-# Backbone (P1→P5) with GhostConv, SimAM, SE, GhostC2f
-# ------------------------------------------
 backbone:
-  - [-1, 1, GhostConv, [16, 3, 2]]    # 0 → P1/2  (tiny spatial)
-  - [-1, 1, GhostConv, [32, 3, 2]]    # 1 → P2/4  (feature extractor)
-  - [-1, 1, SimAM,     [32]]          # 2 → spatial attention
-  - [-1, 1, GhostC2f, [32, True]]     # 3 → refine P2 channels
-  - [-1, 1, GhostConv, [64, 3, 2]]    # 4 → P3/8  (deeper features)
-  - [-1, 1, SE,        [64, 8]]       # 5 → channel attention
-  - [-1, 1, GhostC2f, [64, True]]     # 6 → refine P3
-  - [-1, 1, GhostConv, [128, 3, 2]]   # 7 → P4/16
-  - [-1, 1, GhostC2f, [128, True]]    # 8 → refine P4
-  - [-1, 1, GhostConv, [128,3,2]]     # 9 → P5/32 (reduced)
-  - [-1, 1, SPPF,      [128,5]]       # 10→ spatial pooling
+  # [from, num, module, args]
+  - [-1, 1, Conv,    [32, 3, 2]]    # 0 → P1/2
+  - [-1, 1, Conv,    [64, 3, 2]]    # 1 → P2/4
+  - [-1, 2, C2f,     [64, True]]    # 2 → refine P2
+  - [-1, 1, Conv,    [128, 3, 2]]   # 3 → P3/8
+  - [-1, 4, C2f,     [128, True]]   # 4 → refine P3
+  - [-1, 1, Conv,    [256, 3, 2]]   # 5 → P4/16
+  - [-1, 4, C2f,     [256, True]]   # 6 → refine P4
+  - [-1, 1, Conv,    [512, 3, 2]]   # 7 → P5/32
+  - [-1, 2, C2f,     [512, True]]   # 8 → refine P5
+  - [-1, 1, SPPF,    [512, 5]]      # 9 → pool
 
-# ------------------------------------------
-# Head (FPN + Detect + Pose)
-# ------------------------------------------
 head:
-  # P5→P4 lateral
-  - [-1, 1, nn.Upsample, [None,2,'nearest']]   #11
-  - [[11,8],1, Concat, [1]]                   #12: merge P4
-  - [-1,1, GhostC2f,   [128,True]]           #13
+  # FPN merging P5→P4→P3
+  - [-1, 1, nn.Upsample, [None,2,'nearest']]  #10
+  - [[10,6],1, Concat, [1]]                   #11
+  - [-1,2, C2f,     [256, True]]              #12
 
-  # P4→P3 lateral
-  - [-1,1, nn.Upsample, [None,2,'nearest']]   #14
-  - [[14,6],1, Concat, [1]]                   #15: merge P3
-  - [-1,1, GhostC2f,   [64,True]]            #16
+  - [-1, 1, nn.Upsample, [None,2,'nearest']]  #13
+  - [[13,4],1, Concat, [1]]                   #14
+  - [-1,2, C2f,     [128, True]]              #15
 
-  # P3→P4 downsample
-  - [-1,1, GhostConv,  [64,3,2]]             #17
-  - [[17,13],1, Concat,[1]]                  #18
-  - [-1,1, GhostC2f,   [128,True]]           #19
+  - [-1, 1, Conv,  [128,3,2]]                 #16
+  - [[16,12],1, Concat, [1]]                  #17
+  - [-1,2, C2f,     [256, True]]              #18
 
-  # P4→P5 downsample
-  - [-1,1, GhostConv,  [128,3,2]]            #20
-  - [[20,10],1, Concat,[1]]                  #21
-  - [-1,1, GhostC2f,   [128,True]]           #22
+  - [-1, 1, Conv,  [256,3,2]]                 #19
+  - [[19,9],1, Concat, [1]]                   #20
+  - [-1,2, C2f,     [512, True]]              #21
 
-  # Detect heads (P3, P4, P5)
-  - [[16,19,22],1, Detect, [nc]]             #23
+  # Detection on P3, P4, P5
+  - [[15,18,21],1, Detect, [nc]]              #22
 
-  # Unified small Pose head: single conv then Pose
-  - [-1,1, Conv,     [64,1,1]]               #24: compact feature
-  - [[24],1, Pose,   [nc, kpt_shape]]        #25: keypoint regression
+  # **High‑res P2 keypoint head**  
+  - [2, 1, Conv,    [64, 3, 1]]               #23
+  - [[23],1, Pose,  [nc, kpt_shape]]          #24
 
-# End of ultra‑light YOLOv8n‑pose config
+  # **Unified Pose head** (global context)
+  - [-1,1, Conv,    [128,1,1]]                #25
+  - [[25],1, Pose,  [nc, kpt_shape]]          #26
