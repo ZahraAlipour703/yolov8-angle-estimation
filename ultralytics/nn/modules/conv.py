@@ -18,6 +18,8 @@ __all__ = (
     "ConvTranspose",
     "Focus",
     "GhostConv",
+    "SimAM",
+    "GhostC2f",
     "ChannelAttention",
     "SpatialAttention",
     "CoordAtt",
