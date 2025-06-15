@@ -2,14 +2,20 @@ import torch
 import torch.nn as nn
 
 class SimAM(nn.Module):
-    def __init__(self, channels):
+    """
+    Simple Attention Module (SimAM): per-pixel spatial attention without extra parameters.
+    """
+    def __init__(self, e_lambda=1e-4):
         super().__init__()
-        self.alpha = nn.Parameter(torch.ones(1) * 1e-4)
+        self.e_lambda = e_lambda
 
     def forward(self, x):
         b, c, h, w = x.size()
-        mean = x.mean(dim=[2, 3], keepdim=True)
-        std = x.std(dim=[2, 3], keepdim=True)
-        e = (x - mean) ** 2
-        attn = e / (4 * (std + self.alpha) ** 2) + 0.5
-        return x * torch.sigmoid(attn)
+        # compute mean and variance per-channel
+        x_flat = x.view(b, c, -1)
+        mu = x_flat.mean(-1, keepdim=True)
+        var = ((x_flat - mu)**2).mean(-1, keepdim=True)
+        # energy: (x - mu)^2 / (4*(var+lambda)) + 0.5
+        e = ((x_flat - mu)**2) / (4 * (var + self.e_lambda)) + 0.5
+        a = torch.sigmoid(e.view(b, c, h, w))
+        return x * a
