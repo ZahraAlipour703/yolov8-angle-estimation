@@ -1,40 +1,33 @@
-import torch
 import torch.nn as nn
-from ultralytics.nn.modules.conv import GhostConv
+from ultralytics.utils.ghost_conv import GhostConv
+
 
 class GhostC2f(nn.Module):
     """
-    Lightweight C2f module using GhostConv. Falls back for small channel counts.
+    GhostC2f: replaces C2f but uses GhostConv for both branches.
     """
     def __init__(self, c1, c2, shortcut=True, g=1, e=0.5):
         super().__init__()
-        # If output channels too small, fallback to identity or standard conv
-        if c2 < 4:
-            # Use a single GhostConv to match channels
-            self.add = False
-            self.module = GhostConv(c1, c2, 1, 1)
+        # total output channels = c2
+        # hidden branch channels
+        c_ = max(1, int(c2 * e))
+        # first GhostConv branch
+        self.ghost1 = GhostConv(c1, c_, 1, 1, g)
+        # second branch: either identity or another conv
+        if shortcut:
+            self.add = True
+            # adjust channels if necessary
+            self.ghost2 = GhostConv(c1, c_, 1, 1, g)
         else:
-            self.c = max(2, int(c2 * e))  # intermediate channels
-            c_hidden = max(1, self.c // 2)
-            # primary projections
-            self.cv1 = GhostConv(c1, self.c, 1, 1)
-            self.cv2 = GhostConv((2 if shortcut else 1) * self.c, c2, 1)
-            # refinement path
-            safe_g = 1 if c_hidden < g or c_hidden % g != 0 else g
-            self.m = nn.Sequential(
-                GhostConv(self.c, self.c, 3, 1, g=safe_g),
-                GhostConv(self.c, self.c, 3, 1, g=safe_g)
-            )
-            self.add = shortcut and c1 == c2
-            self.module = None
+            self.add = False
+            self.ghost2 = GhostConv(c_, c_, 1, 1, g)
+        # final conv to project back to c2
+        self.conv = nn.Conv2d(c_ * 2, c2, 1, 1, bias=False)
+        self.bn = nn.BatchNorm2d(c2)
+        self.act = nn.Identity()
 
     def forward(self, x):
-        if self.module is not None:
-            # ghost-c2f path
-            y1 = self.cv1(x)
-            y2 = self.m(y1)
-            out = self.cv2(torch.cat((y1, y2), 1))
-            return out + x if self.add else out
-        else:
-            # fallback
-            return self.module(x)
+        y1 = self.ghost1(x)
+        y2 = self.ghost2(x if self.add else y1)
+        y = torch.cat([y1, y2], dim=1)
+        return self.act(self.bn(self.conv(y)))
