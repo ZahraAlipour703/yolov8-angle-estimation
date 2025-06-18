@@ -11,40 +11,43 @@ scale: "n"        # YOLOv8n nano topology
 #    reduce computational cost significantly over standard convolutions.
 backbone:
   - [-1, 1, Conv,      [16, 3, 2]]    # 0 → P1/2
-  - [-1, 1, GhostConv, [32, 3, 2]]    # 1 → P2/4
+  - [-1, 2, GhostConv, [32, 3, 2]]    # 1 → P2/4
   - [-1, 1, SimAM,     [32]]          # 2 → spatial attention
-  - [-1, 1, GhostConv, [64, 3, 2]]    # 3 → P3/8
-  - [-1, 1, GhostConv, [128,3, 2]]    # 4 → P4/16
-  - [-1, 1, GhostConv, [128,3, 2]]    # 5 → P5/32
-  - [-1, 1, SPPF,      [128,5]]       # 6 → spatial pooling
+  - [-1, 1, DWConv, [64, 3, 2]]    # 3 → P3/8
+  - [-1, 2, C2f, [64, True]]    # 4 → P4/16
+  - [-1, 1, Conv, [128,3, 2]]    # 5 → P5/32
+  - [-1, 2, C2f, [128,True]]
+  - [-1, 1, Conv, [256, 3, 2]]
+  - [-1, 1, ECA, [256, 3]]
+  - [-1, 1 SPPF, [ 256, 5]]
 
 # Head (FPN + Detect + Pose)
 head:
   # P5→P4 fusion
   - [-1, 1, nn.Upsample, [None,2,'nearest']]  #7
-  - [[7,4],1, Concat, [1]]                    #8: P4 merge
-  - [-1,1, Conv, [64, 1,1]]                  #9: reduce to 64
+  - [[10, 6], 1, Concat, [1]]                    #8: P4 merge
+  - [-1,1, Conv, [128, 1, 1]]                  #9: reduce to 64
 
   # P4→P3 fusion
-  - [-1,1, nn.Upsample,[None,2,'nearest']]    #10
-  - [[10,3],1, Concat, [1]]                   #11: P3 merge
-  - [-1,1, Conv, [32, 1,1]]                   #12: reduce to 32
+  - [-1,1, nn.Upsample,[None, 2,'nearest']]    #10
+  - [[13, 4], 1, Concat, [1]]                   #11: P3 merge
+  - [-1,1, Conv, [64, 1, 1]]                   #12: reduce to 32
 
   # P3→P4 downsampling
-  - [-1,1, Conv, [32, 3,2]]                   #13
-  - [[13,9],1, Concat,[1]]                    #14
-  - [-1,1, Conv, [64, 1,1]]                   #15
+  - [-1, 1, Conv, [64, 3, 2]]                   #13
+  - [[16, 12],1, Concat, [1]]                    #14
+  - [-1, 1, Conv, [128, 1, 1]]                   #15
 
   # P4→P5 downsampling
-  - [-1,1, Conv, [64, 3,2]]                   #16
-  - [[16,6],1, Concat,[1]]                    #17
-  - [-1,1, Conv, [64, 1,1]]                   #18
+  - [-1, 1, Conv, [128, 3, 2]]                   #16
+  - [[19, 9],1 , Concat,[1]]                    #17
+  - [-1,1, Conv, [256, 1, 1]]                   #18
 
   # Detect head (P3,P4,P5)
-  - [[12,15,18],1, Detect, [nc]]              #19
+  - [[15, 18, 21], 1, Detect, [nc]]              #19
 
   # Single ultra -light Pose head (shared feature)
-  - [-1,1, Conv, [32, 1,1]]                   #20
-  - [[20],1, Pose, [nc, kpt_shape]]           #21
+  - [-1, 1, Conv, [64, 1, 1]]                   #20
+  - [[23],1 , Pose, [nc, kpt_shape]]           #21
 
 # v3 end: ~8.2M params, ~7.8 GFLOPs
