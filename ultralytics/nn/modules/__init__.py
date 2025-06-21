@@ -74,6 +74,7 @@ from .conv import (
     ECA,
     GhostConv,
     GhostC2f,
+    SimAM,
     ConvTranspose,
     DWConv,
     DWConvTranspose2d,
