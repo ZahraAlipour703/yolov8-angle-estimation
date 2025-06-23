@@ -12,43 +12,43 @@ scale: "n"  # YOLOv8 nano base for efficiency
 backbone:
   - [-1, 1, GhostConv, [16, 3, 2]]       # 0 - Stem P1/2
   - [-1, 1, GhostConv, [32, 3, 2]]       # 1 - P2/4
-  - [-1, 1, CoordAtt, [32]]             # 2 - spatial attention
-  - [-1, 2, C2f, [32, True]]            # 3
-  - [-1, 1, GhostConv, [64, 3, 2]]      # 4 - P3/8
-  - [-1, 1, CBAM, [64]]                 # 5
-  - [-1, 2, C2f, [64, True]]            # 6
-  - [-1, 1, GhostConv, [128, 3, 2]]     # 7 - P4/16
-  - [-1, 1, CoordAtt, [128]]            # 8
-  - [-1, 2, C2f, [128, True]]           # 9
-  - [-1, 1, GhostConv, [256, 3, 2]]     #10 - P5/32
-  - [-1, 1, SPPF, [256, 5]]             #11
+  - [-1, 1, CoordAtt, [32]]              # 2 - spatial attention
+  - [-1, 2, C2f, [32, True]]             # 3
+  - [-1, 1, GhostConv, [64, 3, 2]]       # 4 - P3/8
+  - [-1, 1, CBAM, [64]]                  # 5
+  - [-1, 2, C2f, [64, True]]             # 6
+  - [-1, 1, GhostConv, [128, 3, 2]]      # 7 - P4/16
+  - [-1, 1, CoordAtt, [128]]             # 8
+  - [-1, 2, C2f, [128, True]]            # 9
+  - [-1, 1, GhostConv, [256, 3, 2]]      # 10 - P5/32
+  - [-1, 1, SPPF, [256, 5]]              # 11
 
 # --------------------------
 # Neck - BiFPN-style
 # --------------------------
 head:
-  - [-1, 1, nn.Upsample, [None, 2, "nearest"]]  #12 - P5 → P4
-  - [[12, 9], 1, Concat, [1]]                   #13
-  - [-1, 1, C2f, [128, True]]                   #14
+  - [-1, 1, nn.Upsample, [None, 2, "nearest"]]  # 12 - P5 → P4
+  - [[12, 9], 1, Concat, [1]]                    # 13
+  - [-1, 1, C2f, [128, True]]                    # 14
 
-  - [-1, 1, nn.Upsample, [None, 2, "nearest"]]  #15 - P4 → P3
-  - [[15, 6], 1, Concat, [1]]                   #16
-  - [-1, 1, C2f, [64, True]]                    #17
+  - [-1, 1, nn.Upsample, [None, 2, "nearest"]]  # 15 - P4 → P3
+  - [[15, 6], 1, Concat, [1]]                    # 16
+  - [-1, 1, C2f, [64, True]]                     # 17
 
-  - [-1, 1, Conv, [64, 3, 2]]                   #18 - P3 → P4
-  - [[18, 14], 1, Concat, [1]]                  #19
-  - [-1, 1, C2f, [128, True]]                   #20
+  - [-1, 1, Conv, [64, 3, 2]]                    # 18 - P3 → P4
+  - [[18, 14], 1, Concat, [1]]                   # 19
+  - [-1, 1, C2f, [128, True]]                    # 20
 
-  - [-1, 1, Conv, [128, 3, 2]]                  #21 - P4 → P5
-  - [[21, 11], 1, Concat, [1]]                  #22
-  - [-1, 1, C2f, [256, True]]                   #23
+  - [-1, 1, Conv, [128, 3, 2]]                   # 21 - P4 → P5
+  - [[21, 11], 1, Concat, [1]]                   # 22
+  - [-1, 1, C2f, [256, True]]                    # 23
 
   # Detect
-  - [[17, 20, 23], 1, Detect, [nc]]            #24
+  - [17, 20, 23, 1, Detect, [nc]]               # 24
 
   # Dual Pose heads
-  - [17, 1, Conv, [64, 1, 1]]                   #25 - High-res fine joints
-  - [-1, 1, Pose, [nc, kpt_shape]]              #26
+  - [17, 1, Conv, [64, 1, 1]]                    # 25 - High-res fine joints
+  - [-1, 1, Pose, [nc, kpt_shape]]              # 26
 
-  - [23, 1, Conv, [128, 1, 1]]                  #27 - Coarse pose reinforcement
-  - [-1, 1, Pose, [nc, kpt_shape]]              #28
+  - [23, 1, Conv, [128, 1, 1]]                   # 27 - Coarse pose reinforcement
+  - [-1, 1, Pose, [nc, kpt_shape]]              # 28
