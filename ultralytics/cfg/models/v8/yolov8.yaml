@@ -1,38 +1,40 @@
-# Ultra-light YOLOv8n-pose v3: <9GFLOPs, ~8M params
-nc: 1
-kpt_shape: [21,3]
-scale: "n"
+# Ultralytics Innovative Hand Pose Estimation Model
+# Based on YOLOv8-Pose with C2f_CA and BiFPN for hand and index finger tracking
+# License: AGPL-3.0 (https://ultralytics.com/license)
+# Docs: https://docs.ultralytics.com/models/yolov8
 
+# Parameters
+nc: 1  # Number of classes (hand)
+kpt_shape: [21, 3]  # 21 keypoints (x, y, visibility) for hand pose
+scales:
+  n: [0.33, 0.25, 1024]  # Nano scale: depth=0.33, width=0.25, max_channels=1024
+
+# Backbone
 backbone:
-  - [[-1], 1, Conv,      [16, 3, 2]]
-  - [[-1], 2, GhostConv, [32, 3, 2]]
-  - [[-1], 1, SimAM,     [32]]
-  - [[-1], 1, DWConv,    [64,    3, 2]]
-  - [[-1], 2, C2f,       [64,  True]]
-  - [[-1], 1, Conv,      [128,   3, 2]]
-  - [[-1], 2, C2f,       [128, True]]
-  - [[-1], 1, Conv,      [256,   3, 2]]
-  - [[-1], 1, ECA,       [256,   3]]
-  - [[-1], 1, SPPF,      [256,   5]]
+  - [-1, 1, Conv, [16, 3, 2]]  # 0-P1/2
+  - [-1, 1, Conv, [32, 3, 2]]  # 1-P2/4
+  - [-1, 1, C2f_CA, [32, True]]  # Scaled from 3 repeats
+  - [-1, 1, Conv, [64, 3, 2]]  # 3-P3/8
+  - [-1, 2, C2f_CA, [64, True]]  # Scaled from 6 repeats
+  - [-1, 1, Conv, [128, 3, 2]]  # 5-P4/16
+  - [-1, 2, C2f_CA, [128, True]]  # Scaled from 6 repeats
+  - [-1, 1, Conv, [256, 3, 2]]  # 7-P5/32
+  - [-1, 1, C2f_CA, [256, True]]  # Scaled from 3 repeats
+  - [-1, 1, SPPF, [256, 5]]  # 9
 
+# Head
 head:
-  - [[-1], 1, nn.Upsample, [None, 2, 'nearest']]
-  - [[-1, 6], 1, Concat,    [1]]
-  - [[-1], 1, Conv,         [128,   1, 1]]
-
-  - [[-1], 1, nn.Upsample, [None, 2, 'nearest']]
-  - [[-1, 4], 1, Concat,    [1]]
-  - [[-1], 1, Conv,         [64,    1, 1]]
-
-  - [[-1], 1, Conv,         [64,    3, 2]]
-  - [[-1,12],1, Concat,     [1]]
-  - [[-1], 1, Conv,         [128,   1, 1]]
-
-  - [[-1], 1, Conv,         [128,   3, 2]]
-  - [[-1, 9],1, Concat,     [1]]
-  - [[-1], 1, Conv,         [256,   1, 1]]
-
-  - [[[15,18,21]], 1, Detect, [nc]]
-
-  - [[-1], 1, Conv,         [64,    1, 1]]
-  - [[-1], 1, Pose,         [nc, kpt_shape]]
+  - [-1, 1, nn.Upsample, [None, 2, "nearest"]]  # 10
+  - [[-1, 6], 1, Concat, [1]]  # cat backbone P4
+  - [-1, 1, C2f_CA, [128]]  # 12
+  - [-1, 1, nn.Upsample, [None, 2, "nearest"]]  # 13
+  - [[-1, 4], 1, Concat, [1]]  # cat backbone P3
+  - [-1, 1, C2f_CA, [64]]  # 15 (P3/8-small)
+  - [-1, 1, Conv, [64, 3, 2]]  # 16
+  - [[-1, 12], 1, Concat, [1]]  # cat head P4
+  - [-1, 1, C2f_CA, [128]]  # 18 (P4/16-medium)
+  - [-1, 1, Conv, [128, 3, 2]]  # 19
+  - [[-1, 9], 1, Concat, [1]]  # cat head P5
+  - [-1, 1, C2f_CA, [256]]  # 21 (P5/32-large)
+  - [[15, 18, 21], 1, BiFPN, [64, 128, 256]]  # Enhanced feature fusion
+  - [[-1], 1, Pose, [nc, kpt_shape]]  # Pose output
