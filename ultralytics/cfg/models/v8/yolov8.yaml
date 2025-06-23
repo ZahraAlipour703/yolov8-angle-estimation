@@ -1,49 +1,75 @@
 # Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
-# Ultra-light YOLOv8n-pose v3: <9 GFLOPs, ~8M params
-# real-time hand + index-finger tracking
+# Hybrid-Light YOLOv8s-Pose: GhostConv + Shuffle-inspired modules + CoordAtt + BiFPN + dual keypoint heads
 
-nc: 1               # single class (hand)
-kpt_shape: [21,3]
-scale: "n"          # nano
+# ------------------------------------------
+# Parameters
+# ------------------------------------------
+nc: 1                   # hand class
+kpt_shape: [21,3]      # 21 hand landmarks (x,y,conf)
+scale: "s"             # use YOLOv8s topology as base
 
-# Backbone (P1→P5) with DWConv and ECA attention
+# ------------------------------------------
+# Backbone (P1 → P5)
+# ------------------------------------------
 backbone:
-  - [-1, 1, Conv,      [16,   3, 2]]     # 0 → P1/2, 16ch
-  - [-1, 2, GhostConv, [32,   3, 2]]     # 1 → P2/4, 32ch
-  - [-1, 1, SimAM,     [32]]             # 2 → spatial attention (32ch)
-  - [-1, 1, DWConv,    [64,   3, 2]]     # 3 → P3/8, 64ch
-  - [-1, 2, C2f,       [64,   True]]     # 4 → refine P3 (64ch)
-  - [-1, 1, Conv,      [128,  3, 2]]     # 5 → P4/16, 128ch
-  - [-1, 2, C2f,       [128,  True]]     # 6 → refine P4 (128ch)
-  - [-1, 1, Conv,      [256,  3, 2]]     # 7 → P5/32, 256ch
-  - [-1, 1, ECA,       [256,  3]]        # 8 → channel attention (256ch)
-  - [-1, 1, SPPF,      [256,  5]]        # 9 → spatial pooling (256ch)
+  # stem
+  - [-1, 1, Conv,        [32, 3, 2]]          # 0 → P1/2 (32)
+  # efficient feature extractor
+  - [-1, 1, GhostConv,   [64, 3, 2]]          # 1 → P2/4 (64)
+  - [-1, 1, CoordAtt,    [64]]                # 2 → positional focus
+  - [-1, 2, C2f,         [64, True]]          # 3
 
-# Head (FPN + Detect + Pose)
+  - [-1, 1, GhostConv,   [128, 3, 2]]         # 4 → P3/8 (128)
+  - [-1, 1, CBAM,        [128]]               # 5 → channel-spatial refinement
+  - [-1, 3, C2f,         [128, True]]         # 6
+
+  - [-1, 1, GhostConv,   [256, 3, 2]]         # 7 → P4/16 (256)
+  - [-1, 1, CoordAtt,    [256]]               # 8 → long-range spatial
+  - [-1, 3, C2f,         [256, True]]         # 9
+
+  - [-1, 1, GhostConv,   [512, 3, 2]]         #10 → P5/32 (512)
+  - [-1, 1, SPPF,        [512, 5]]            #11
+
+# ------------------------------------------
+# Neck (2-layer BiFPN-style)
+# ------------------------------------------
 head:
+  # --- BiFPN Up-Path ---
   # P5 → P4
-  - [-1, 1, nn.Upsample, [None, 2, 'nearest']]  # 10: up256→256
-  - [[10, 6], 1, Concat,       [1]]             # 11: cat(256+128)=384
-  - [-1, 1, Conv,             [128,  1, 1]]    # 12: reduce→128
+  - [-1, 1, nn.Upsample, [None,2,'nearest']]  #12
+  - [[12, 9], 1, Concat, [1]]                  #13
+  - [-1, 1, C2f,         [256, True]]         #14
 
   # P4 → P3
-  - [-1, 1, nn.Upsample, [None, 2, 'nearest']]  # 13: up128→128
-  - [[13, 4], 1, Concat,      [1]]              # 14: cat(128+64)=192
-  - [-1, 1, Conv,             [64,   1, 1]]     # 15: reduce→64
+  - [-1, 1, nn.Upsample, [None,2,'nearest']]  #15
+  - [[15, 6], 1, Concat, [1]]                 #16
+  - [-1, 1, C2f,         [128, True]]         #17
 
-  # P3 → P4 downsample
-  - [-1, 1, Conv,             [64,   3, 2]]     # 16: down64→64
-  - [[16, 12], 1, Concat,     [1]]              # 17: cat(64+128)=192
-  - [-1, 1, Conv,             [128,  1, 1]]     # 18: reduce→128
+  # --- BiFPN Down-Path ---
+  # P3 → P4
+  - [-1, 1, Conv,        [128, 3, 2]]         #18
+  - [[18, 14],1, Concat, [1]]                 #19
+  - [-1, 1, C2f,         [256, True]]         #20
 
-  # P4 → P5 downsample
-  - [-1, 1, Conv,             [128,  3, 2]]     # 19: down128→128
-  - [[19, 9], 1, Concat,      [1]]              # 20: cat(128+256)=384
-  - [-1, 1, Conv,             [256,  1, 1]]     # 21: reduce→256
+  # P4 → P5
+  - [-1, 1, Conv,        [256, 3, 2]]         #21
+  - [[21, 11],1, Concat, [1]]                 #22
+  - [-1, 1, C2f,         [512, True]]         #23
 
-  # Detect heads on P3, P4, P5
-  - [[15, 18, 21], 1, Detect, [nc]]             # 22
+  # ------------------------------------------
+  # Detection Head
+  # ------------------------------------------
+  - [[17, 20, 23], 1, Detect, [nc]]           #24 detect on P3/P4/P5
 
-  # Shared ultra-light Pose head
-  - [-1, 1, Conv,             [64,   1, 1]]     # 23: project→64
-  - [[23], 1, Pose,           [nc, kpt_shape]]  # 24: keypoints
+  # ------------------------------------------
+  # Keypoint Heads
+  # ------------------------------------------
+  # High-res P3 head for fine finger joints
+  - [17, 1, Conv,      [128, 1, 1]]           #25
+  - [-1, 1, Pose,      [nc, kpt_shape]]       #26
+
+  # Contextual P5 head to reinforce coarse context
+  - [23, 1, Conv,      [256, 1, 1]]           #27
+  - [-1, 1, nn.ReLU,   []]                    #28
+  - [-1, 1, Conv,      [256, 1, 1]]           #29
+  - [[29], 1, Pose,    [nc, kpt_shape]]       #30
