@@ -44,7 +44,8 @@ head:
   - [-1, 1, C2f, [256, True]]                    # 23
 
   # Detect
-  - [17, 20, 23, 1, Detect, [nc]]               # 24
+  #- [17, 20, 23, 1, Detect, [nc]]               # 24
+  - [[17, 20, 23], 1, Detect, [nc]]
 
   # Dual Pose heads
   - [17, 1, Conv, [64, 1, 1]]                    # 25 - High-res fine joints
