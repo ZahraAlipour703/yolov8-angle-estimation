@@ -1,70 +1,54 @@
-# Balanced YOLOv8s-Pose: Ghost/DWConv + CoordAtt + Shallow BiFPN
-# ~15M params, ~25 GFLOPs (vs 11M/28 GFLOPs for vanilla s)
+# Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
+# Optimized YOLOv8-based Hybrid-Pose model
+# Lightweight yet accurate hand & index finger tracking architecture
 
-nc: 1                   # single class (hand)
-kpt_shape: [21,3]      # 21 keypoints: x, y, conf
-scale: "s"             # start from YOLOv8s
+nc: 1  # Number of classes (hand)
+kpt_shape: [21, 3]  # 21 keypoints for hand pose (x, y, visibility)
+scale: "n"  # YOLOv8 nano base for efficiency
 
 # --------------------------
-# Backbone (stem + P2–P5)
+# Backbone
 # --------------------------
 backbone:
-  # stem: very lightweight
-  - [-1, 1, Conv,      [32,   3, 2]]   # 0 → P1/2
-  - [-1, 1, GhostConv, [64,   3, 2]]   # 1 → P2/4
-
-  # P2 block with attention
-  - [-1, 1, C2f,       [64,  True]]    # 2
-  - [-1, 1, CoordAtt,  [64]]           # 3
-
-  # P3 block
-  - [-1, 1, GhostConv, [128,  3, 2]]   # 4 → P3/8
-  - [-1, 3, C2f,       [128, True]]    # 5
-
-  # lightweight P4 block
-  - [-1, 1, DWConv,    [256,  3, 2]]   # 6 → P4/16
-  - [-1, 2, C2f,       [256, True]]    # 7
-
-  # P5 block
-  - [-1, 1, GhostConv, [512,  3, 2]]   # 8 → P5/32
-  - [-1, 1, SPPF,      [512,  5]]      # 9
+  - [-1, 1, GhostConv, [16, 3, 2]]       # 0 - Stem P1/2
+  - [-1, 1, GhostConv, [32, 3, 2]]       # 1 - P2/4
+  - [-1, 1, CoordAtt, [32]]             # 2 - spatial attention
+  - [-1, 2, C2f, [32, True]]            # 3
+  - [-1, 1, GhostConv, [64, 3, 2]]      # 4 - P3/8
+  - [-1, 1, CBAM, [64]]                 # 5
+  - [-1, 2, C2f, [64, True]]            # 6
+  - [-1, 1, GhostConv, [128, 3, 2]]     # 7 - P4/16
+  - [-1, 1, CoordAtt, [128]]            # 8
+  - [-1, 2, C2f, [128, True]]           # 9
+  - [-1, 1, GhostConv, [256, 3, 2]]     #10 - P5/32
+  - [-1, 1, SPPF, [256, 5]]             #11
 
 # --------------------------
-# Neck (1-layer BiFPN)
+# Neck - BiFPN-style
 # --------------------------
 head:
-  # upsample P5→P4
-  - [-1, 1, nn.Upsample, [None,2,'nearest']]  #10
-  - [[10,7], 1, Concat,     [1]]              #11
-  - [-1, 1, C2f,      [256, True]]            #12
+  - [-1, 1, nn.Upsample, [None, 2, "nearest"]]  #12 - P5 → P4
+  - [[12, 9], 1, Concat, [1]]                   #13
+  - [-1, 1, C2f, [128, True]]                   #14
 
-  # upsample P4→P3
-  - [-1, 1, nn.Upsample, [None,2,'nearest']]  #13
-  - [[13,5], 1, Concat,     [1]]              #14
-  - [-1, 1, C2f,      [128, True]]            #15
+  - [-1, 1, nn.Upsample, [None, 2, "nearest"]]  #15 - P4 → P3
+  - [[15, 6], 1, Concat, [1]]                   #16
+  - [-1, 1, C2f, [64, True]]                    #17
 
-  # downsample P3→P4
-  - [-1, 1, Conv,     [128, 3, 2]]            #16
-  - [[16,12],1, Concat,   [1]]                #17
-  - [-1, 1, C2f,      [256, True]]            #18
+  - [-1, 1, Conv, [64, 3, 2]]                   #18 - P3 → P4
+  - [[18, 14], 1, Concat, [1]]                  #19
+  - [-1, 1, C2f, [128, True]]                   #20
 
-  # downsample P4→P5
-  - [-1, 1, Conv,     [256, 3, 2]]            #19
-  - [[19,9], 1, Concat,    [1]]               #20
-  - [-1, 1, C2f,      [512, True]]            #21
+  - [-1, 1, Conv, [128, 3, 2]]                  #21 - P4 → P5
+  - [[21, 11], 1, Concat, [1]]                  #22
+  - [-1, 1, C2f, [256, True]]                   #23
 
-  # Detect on P3, P4, P5
-  - [[15,18,21], 1, Detect, [nc]]             #22
+  # Detect
+  - [[17, 20, 23], 1, Detect, [nc]]            #24
 
-  # --------------------------
-  # Pose heads (dual-scale)
-  # --------------------------
-  # High-res P2 head for fine joints
-  - [3, 1, Conv,      [64, 1, 1]]              #23
-  - [[23],1, Pose,    [nc, kpt_shape]]         #24
+  # Dual Pose heads
+  - [17, 1, Conv, [64, 1, 1]]                   #25 - High-res fine joints
+  - [-1, 1, Pose, [nc, kpt_shape]]              #26
 
-  # Contextual P4 head for robustness
-  - [7, 1, Conv,      [256,1,1]]               #25
-  - [-1,1, nn.ReLU,   []]                      #26
-  - [-1,1, Conv,      [256,1,1]]               #27
-  - [[27],1, Pose,    [nc, kpt_shape]]         #28
+  - [23, 1, Conv, [128, 1, 1]]                  #27 - Coarse pose reinforcement
+  - [-1, 1, Pose, [nc, kpt_shape]]              #28
