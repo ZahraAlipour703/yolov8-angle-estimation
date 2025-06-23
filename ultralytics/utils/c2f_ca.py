@@ -1,4 +1,6 @@
 # Define the C2f_CA module
+import torch
+import torch.nn as nn
 class C2f_CA(nn.Module):
     def __init__(self, c1, c2, n=1, shortcut=False, g=1, e=0.5):
         super(C2f_CA, self).__init__()
