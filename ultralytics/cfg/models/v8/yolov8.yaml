@@ -8,42 +8,42 @@ scale: "n"          # nano
 
 # Backbone (P1→P5) with DWConv and ECA attention
 backbone:
-  - [-1, 1, Conv,      [16, 3, 2]]     # 0 → P1/2
-  - [-1, 2, GhostConv, [32, 3, 2]]     # 1 → P2/4
-  - [-1, 1, SimAM,     [32]]           # 2 → spatial attention
-  - [-1, 1, DWConv,    [64, 3, 2]]     # 3 → P3/8
-  - [-1, 2, C2f,       [64, True]]     # 4 → refine P3
-  - [-1, 1, Conv,      [128, 3, 2]]    # 5 → P4/16
-  - [-1, 2, C2f,       [128, True]]    # 6 → refine P4
-  - [-1, 1, Conv,      [256, 3, 2]]    # 7 → P5/32
-  - [-1, 1, ECA,       [256, 3]]       # 8 → channel attention
-  - [-1, 1, SPPF,      [256, 5]]       # 9 → spatial pooling
+  - [-1, 1, Conv,      [16,   3, 2]]     # 0 → P1/2, 16ch
+  - [-1, 2, GhostConv, [32,   3, 2]]     # 1 → P2/4, 32ch
+  - [-1, 1, SimAM,     [32]]             # 2 → spatial attention (32ch)
+  - [-1, 1, DWConv,    [64,   3, 2]]     # 3 → P3/8, 64ch
+  - [-1, 2, C2f,       [64,   True]]     # 4 → refine P3 (64ch)
+  - [-1, 1, Conv,      [128,  3, 2]]     # 5 → P4/16, 128ch
+  - [-1, 2, C2f,       [128,  True]]     # 6 → refine P4 (128ch)
+  - [-1, 1, Conv,      [256,  3, 2]]     # 7 → P5/32, 256ch
+  - [-1, 1, ECA,       [256,  3]]        # 8 → channel attention (256ch)
+  - [-1, 1, SPPF,      [256,  5]]        # 9 → spatial pooling (256ch)
 
 # Head (FPN + Detect + Pose)
 head:
   # P5 → P4
-  - [-1, 1, nn.Upsample, [None, 2, 'nearest']]  #10
-  - [[10, 6], 1, Concat,       [1]]             #11: merge with P4 (module 6)
-  - [-1, 1, Conv,             [128, 1, 1]]     #12: reduce to 128
+  - [-1, 1, nn.Upsample, [None, 2, 'nearest']]  # 10: up256→256
+  - [[10, 6], 1, Concat,       [1]]             # 11: cat(256+128)=384
+  - [-1, 1, Conv,             [128,  1, 1]]    # 12: reduce→128
 
   # P4 → P3
-  - [-1, 1, nn.Upsample, [None, 2, 'nearest']]  #13
-  - [[13, 4], 1, Concat,      [1]]             #14: merge with P3 (module 4)
-  - [-1, 1, Conv,             [64, 1, 1]]      #15: reduce to 64
+  - [-1, 1, nn.Upsample, [None, 2, 'nearest']]  # 13: up128→128
+  - [[13, 4], 1, Concat,      [1]]              # 14: cat(128+64)=192
+  - [-1, 1, Conv,             [64,   1, 1]]     # 15: reduce→64
 
   # P3 → P4 downsample
-  - [-1, 1, Conv,             [64, 3, 2]]      #16
-  - [[16, 12], 1, Concat,     [1]]             #17
-  - [-1, 1, Conv,             [128, 1, 1]]     #18
+  - [-1, 1, Conv,             [64,   3, 2]]     # 16: down64→64
+  - [[16, 12], 1, Concat,     [1]]              # 17: cat(64+128)=192
+  - [-1, 1, Conv,             [128,  1, 1]]     # 18: reduce→128
 
   # P4 → P5 downsample
-  - [-1, 1, Conv,             [128, 3, 2]]     #19
-  - [[19, 9], 1, Concat,      [1]]             #20
-  - [-1, 1, Conv,             [256, 1, 1]]     #21
+  - [-1, 1, Conv,             [128,  3, 2]]     # 19: down128→128
+  - [[19, 9], 1, Concat,      [1]]              # 20: cat(128+256)=384
+  - [-1, 1, Conv,             [256,  1, 1]]     # 21: reduce→256
 
-  # Detect head (P3, P4, P5)
-  - [[15, 18, 21], 1, Detect, [nc]]             #22
+  # Detect heads on P3, P4, P5
+  - [[15, 18, 21], 1, Detect, [nc]]             # 22
 
   # Shared ultra-light Pose head
-  - [-1, 1, Conv,             [64, 1, 1]]      #23
-  - [[23], 1, Pose,    [nc, kpt_shape]]        #24
+  - [-1, 1, Conv,             [64,   1, 1]]     # 23: project→64
+  - [[23], 1, Pose,           [nc, kpt_shape]]  # 24: keypoints
