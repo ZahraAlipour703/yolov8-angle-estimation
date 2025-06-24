@@ -110,7 +110,7 @@ from .transformer import (
     TransformerEncoderLayer,
     TransformerLayer,
 )
-
+from .dyhead import DyHead
 __all__ = (
     # Convolution & Attention
     "Conv",
@@ -131,6 +131,7 @@ __all__ = (
     "CBAM",
     "CoordAtt",
     "Concat",
+    "DyHead",
     # Blocks
     "TransformerLayer",
     "TransformerBlock",
