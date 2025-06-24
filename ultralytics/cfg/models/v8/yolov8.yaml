@@ -28,28 +28,27 @@ backbone:
 # --------------------------
 head:
   - [-1, 1, nn.Upsample, [None, 2, "nearest"]]  # 12 - P5 → P4
-  - [[12, 9], 1, Concat, [1]]                    # 13
-  - [-1, 1, C2f, [128, True]]                    # 14
+  - [[12, 9], 1, Concat, [1]]                   # 13
+  - [-1, 1, C2f, [128, True]]                   # 14
 
   - [-1, 1, nn.Upsample, [None, 2, "nearest"]]  # 15 - P4 → P3
-  - [[15, 6], 1, Concat, [1]]                    # 16
-  - [-1, 1, C2f, [64, True]]                     # 17
+  - [[15, 6], 1, Concat, [1]]                   # 16
+  - [-1, 1, C2f, [64, True]]                    # 17
 
   - [-1, 1, Conv, [64, 3, 2]]                    # 18 - P3 → P4
-  - [[18, 14], 1, Concat, [1]]                   # 19
-  - [-1, 1, C2f, [128, True]]                    # 20
+  - [[18, 14], 1, Concat, [1]]                  # 19
+  - [-1, 1, C2f, [128, True]]                   # 20
 
   - [-1, 1, Conv, [128, 3, 2]]                   # 21 - P4 → P5
-  - [[21, 11], 1, Concat, [1]]                   # 22
-  - [-1, 1, C2f, [256, True]]                    # 23
+  - [[21, 11], 1, Concat, [1]]                  # 22
+  - [-1, 1, C2f, [256, True]]                   # 23
 
   # Detect
-  #- [17, 20, 23, 1, Detect, [nc]]               # 24
-  - [[17, 20, 23], 1, Detect, [nc]]
+  - [[17, 20, 23], 1, Detect, [nc]]             # 24
 
   # Dual Pose heads
-  - [17, 1, Conv, [64, 1, 1]]                    # 25 - High-res fine joints
-  - [-1, 1, Pose, [nc, kpt_shape]]              # 26
+  - [[17], 1, Conv, [64, 1, 1]]                  # 25 - High-res fine joints
+  - [[-1], 1, Pose, [nc, kpt_shape]]            # 26
 
-  - [23, 1, Conv, [128, 1, 1]]                   # 27 - Coarse pose reinforcement
-  - [-1, 1, Pose, [nc, kpt_shape]]              # 28
+  - [[23], 1, Conv, [128, 1, 1]]                 # 27 - Coarse pose reinforcement
+  - [[-1], 1, Pose, [nc, kpt_shape]]            # 28
