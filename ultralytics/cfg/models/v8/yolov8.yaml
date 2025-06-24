@@ -2,59 +2,54 @@
 # Optimized YOLOv8-based Hybrid-Pose model
 # Lightweight yet accurate hand & index finger tracking architecture
 
-nc: 1  # Number of classes (hand)
-kpt_shape: [21, 3]  # 21 keypoints for hand pose (x, y, visibility)
-scale: "n"  # YOLOv8 nano base for efficiency
+nc: 1                # Number of classes (hand)
+kpt_shape: [21, 3]   # 21 keypoints for hand pose (x, y, visibility)
+scale: "n"           # YOLOv8 nano base for efficiency
 
 # --------------------------
 # Backbone
 # --------------------------
 backbone:
-  - [-1, 1, GhostConv, [16, 3, 2]]       # 0 - Stem P1/2
-  - [-1, 1, GhostConv, [32, 3, 2]]       # 1 - P2/4
-  - [-1, 1, CoordAtt, [32]]              # 2 - spatial attention
-  - [-1, 2, C2f, [32, True]]             # 3 - refine P2
-  - [-1, 1, GhostConv, [64, 3, 2]]       # 4 - P3/8
-  - [-1, 1, CBAM, [64]]                  # 5 - channel-spatial refine
-  - [-1, 2, C2f, [64, True]]             # 6 - refine P3
-  - [-1, 1, GhostConv, [128, 3, 2]]      # 7 - P4/16
-  - [-1, 1, CoordAtt, [128]]             # 8 - positional attention
-  - [-1, 2, C2f, [128, True]]            # 9 - refine P4
-  - [-1, 1, GhostConv, [256, 3, 2]]      # 10 - P5/32
-  - [-1, 1, SPPF, [256, 5]]              # 11 - spatial pooling
+  - [-1, 1, GhostConv, [16, 3, 2]]      # 0 - Stem P1/2
+  - [-1, 1, GhostConv, [32, 3, 2]]      # 1 - P2/4
+  - [-1, 1, CoordAtt,  [32]]            # 2 - spatial attention
+  - [-1, 2, C2f,       [32, True]]      # 3
+  - [-1, 1, GhostConv, [64, 3, 2]]      # 4 - P3/8
+  - [-1, 1, CBAM,      [64]]            # 5
+  - [-1, 2, C2f,       [64, True]]      # 6
+  - [-1, 1, GhostConv, [128, 3, 2]]     # 7 - P4/16
+  - [-1, 1, CoordAtt,  [128]]           # 8
+  - [-1, 2, C2f,       [128, True]]     # 9
+  - [-1, 1, GhostConv, [256, 3, 2]]     # 10 - P5/32
+  - [-1, 1, SPPF,      [256, 5]]        # 11
 
 # --------------------------
 # Neck - BiFPN-style
 # --------------------------
 head:
   - [-1, 1, nn.Upsample, [None, 2, "nearest"]]  # 12 - P5 → P4
-  - [[12, 9], 1, Concat, [1]]                   # 13 - merge P4
-  - [-1, 1, C2f, [128, True]]                   # 14 - refine P4
+  - [[12, 9], 1, Concat,       [1]]             # 13
+  - [-1, 1, C2f,             [128, True]]      # 14
 
   - [-1, 1, nn.Upsample, [None, 2, "nearest"]]  # 15 - P4 → P3
-  - [[15, 6], 1, Concat, [1]]                   # 16 - merge P3
-  - [-1, 1, C2f, [64, True]]                    # 17 - refine P3
+  - [[15, 6],  1, Concat,       [1]]             # 16
+  - [-1, 1, C2f,              [64, True]]      # 17
 
-  - [-1, 1, Conv, [64, 3, 2]]                   # 18 - P3 → P4 downsample
-  - [[18, 14], 1, Concat, [1]]                  # 19 - merge up and down
-  - [-1, 1, C2f, [128, True]]                   # 20 - refine P4
+  - [-1, 1, Conv,       [64,  3, 2]]            # 18 - P3 → P4
+  - [[18, 14],1, Concat,       [1]]             # 19
+  - [-1, 1, C2f,             [128, True]]      # 20
 
-  - [-1, 1, Conv, [128, 3, 2]]                  # 21 - P4 → P5 downsample
-  - [[21, 11], 1, Concat, [1]]                  # 22 - merge up and down
-  - [-1, 1, C2f, [256, True]]                   # 23 - refine P5
+  - [-1, 1, Conv,      [128,  3, 2]]            # 21 - P4 → P5
+  - [[21, 11],1, Concat,       [1]]             # 22
+  - [-1, 1, C2f,             [256, True]]      # 23
 
-# --------------------------
-# Detection Head
-# --------------------------
-  - [[17, 20, 23], 1, Detect, [nc]]             # 24 - Detect on P3, P4, P5
+  # Detect head on P3, P4, P5
+  - [[17, 20, 23], 1, Detect, [nc]]             # 24
 
-# --------------------------
-# Dual Pose heads
-# --------------------------
-  # High-resolution P3 head
-  - [17, 1, Conv, [64, 1, 1]]                   # 25 - project P3
-  - [-1, 1, Pose, [nc, kpt_shape]]             # 26 - pose P3
+  # High-resolution Pose head (fine joints)
+  - [17, 1, Conv,  [64, 1, 1]]                   # 25
+  - [-1, 1, Pose, [nc, kpt_shape]]               # 26
 
-  # Contextual P5 head
-  - [23, 1, Conv, [128, 1, 1]]                  # 27 - project P5
-  - [-1, 1, Pose, [nc, kpt_shape]]             # 28 - pose P5
+  # Coarse Pose reinforcement head
+  - [23, 1, Conv,  [128, 1, 1]]                  # 27
+  - [-1, 1, Pose, [nc, kpt_shape]]               # 28
