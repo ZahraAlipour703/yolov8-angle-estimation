@@ -1,49 +1,30 @@
-# Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
-# Optimized real-time hand + index-finger pose (YOLOv8n) with advanced attention and multi-scale pose head
+# ultra_nano_pose.yaml
+task: pose
+nc:   1
+kpt_shape: [21,3]
+scale: "n"
 
-# Parameters
-nc: 1                   # number of classes (hand)
-kpt_shape: [21, 3]      # 21 hand keypoints: x, y, confidence
-scale: "n"              # YOLOv8n topology for minimal footprint
-
-# Backbone (P1→P5) with CBAM, CoordAtt, and mixed Conv/GhostConv
+# Backbone (depth=1 everywhere, width×0.5)
 backbone:
-  - [-1, 1, Conv,      [32,  3, 2]]   # 0 → P1/2 (standard Conv for rich features)
-  - [-1, 1, Conv,      [64,  3, 2]]   # 1 → P2/4 (standard Conv)
-  - [-1, 1, CBAM,      [64]]          # 2 → CBAM attention at P2
-  - [-1, 2, C2f,       [64,  True]]   # 3 → refine P2
-  - [-1, 1, GhostConv, [128, 3, 2]]   # 4 → P3/8 (switch to GhostConv)
-  - [-1, 1, CoordAtt,  [128]]         # 5 → CoordAtt at P3
-  - [-1, 3, C2f,       [128, True]]   # 6
-  - [-1, 1, GhostConv, [256, 3, 2]]   # 7 → P4/16
-  - [-1, 2, C2f,       [256, True]]   # 8
-  - [-1, 1, GhostConv, [384, 3, 2]]   # 9 → P5/32
-  - [-1, 1, SPPF,      [384, 5]]      # 10
+  - [-1,1,Conv,   [16,3,2]]    # P1/2
+  - [-1,1,DWConv, [32,3,2]]    # P2/4
+  - [-1,1,ECA,    [32,3]]      
+  - [-1,1,C2f,   [32,True]]    # single C2f
 
-# Head (FPN + Detect + Multi-scale Pose)
+  - [-1,1,DWConv, [64,3,2]]    # P3/8
+  - [-1,1,CoordAtt,[64]]
+  - [-1,1,C2f,   [64,True]]
+
+  - [-1,1,DWConv, [128,3,2]]   # P4/16
+  - [-1,1,C2f,   [128,True]]
+
+  - [-1,1,DWConv, [256,3,2]]   # P5/32
+  - [-1,1,SPPF,  [256,5]]
+
+# Single-stage BiFPN
 head:
-  # P5 → P4
-  - [-1, 1, nn.Upsample, [None, 2, 'nearest']]  # 11
-  - [[11, 8], 1, Concat, [1]]                   # 12
-  - [-1, 2, C2f, [256, True]]                  # 13
+  - [[ 2, 5, 8], 1, BiFPN, [64]]  # fuse P2/P3/P4 into 64-ch
+  - [-1,1,Conv, [64,1,1]]         # reduce
 
-  # P4 → P3
-  - [-1, 1, nn.Upsample, [None, 2, 'nearest']]  # 14
-  - [[14, 6], 1, Concat, [1]]                   # 15
-  - [-1, 2, C2f, [128, True]]                  # 16
-
-  # P3 → P4 downsample
-  - [-1, 1, GhostConv, [128, 3, 2]]             # 17
-  - [[17, 13], 1, Concat, [1]]                  # 18
-  - [-1, 2, C2f, [256, True]]                  # 19
-
-  # P4 → P5 downsample
-  - [-1, 1, GhostConv, [256, 3, 2]]             # 20
-  - [[20, 10], 1, Concat, [1]]                  # 21
-  - [-1, 2, C2f, [384, True]]                  # 22
-
-  # Detection heads on P3, P4, P5
-  - [[16, 19, 22], 1, Detect, [nc]]             # 23
-
-  # Multi-scale pose head
-  - [[16, 19, 22], 1, Pose, [nc, kpt_shape]]    # 24
+  # combined Detect+Pose head
+  - [-1,1,DetectPose, [nc, kpt_shape]]
