@@ -1,45 +1,61 @@
 # hybrid_nano.yaml
-task : "pose"
+task: "pose"
 nc: 1
 kpt_shape: [21,3]
 scale: "n"              # target ~9 GFLOPs
 
-# Backbone: P1→P5 with DWConv + ECA + CoordAtt
+# ------------------------------------------
+# Backbone: P1 → P5 with DWConv + ECA + CoordAtt
+# ------------------------------------------
 backbone:
-  - [-1, 1, Conv,     [16, 3, 2]]
-  - [-1, 2, DWConv,   [32, 3, 2]]
-  - [-1, 1, ECA,      [32, 3]]
-  - [-1, 2, C2f,      [32, True]]
+  - [-1,  1, Conv,     [16, 3, 2]]    # 0: P1/2
+  - [-1,  2, DWConv,   [32, 3, 2]]    # 1-2: P2/4
+  - [-1,  1, ECA,      [32, 3]]       # 3: channel attention
+  - [-1,  2, C2f,      [32, True]]    # 4-5: refine P2
 
-  - [-1, 2, DWConv,   [64, 3, 2]]
-  - [-1, 1, CoordAtt, [64]]
-  - [-1, 2, C2f,      [64, True]]
+  - [-1,  2, DWConv,   [64, 3, 2]]    # 6-7: P3/8
+  - [-1,  1, CoordAtt, [64]]          # 8: positional at P3
+  - [-1,  2, C2f,      [64, True]]    # 9-10: refine P3
 
-  - [-1, 2, DWConv,   [128, 3, 2]]
-  - [-1, 1, CoordAtt, [128]]
-  - [-1, 2, C2f,      [128, True]]
+  - [-1,  2, DWConv,   [128, 3, 2]]   # 11-12: P4/16
+  - [-1,  1, CoordAtt, [128]]         # 13: positional at P4
+  - [-1,  2, C2f,      [128, True]]   # 14-15: refine P4
 
-  - [-1, 2, DWConv,   [256, 3, 2]]
-  - [-1, 1, ECA,      [256, 3]]
-  - [-1, 1, SPPF,     [256, 5]]
+  - [-1,  2, DWConv,   [256, 3, 2]]   # 16-17: P5/32
+  - [-1,  1, ECA,      [256, 3]]      # 18: channel attention
+  - [-1,  1, SPPF,     [256, 5]]      # 19: spatial pooling
 
-# Neck: 2-layer BiFPN
+# ------------------------------------------
+# Neck: simple 2-layer BiFPN-style fusion
+# ------------------------------------------
 head:
-  - [-1, 1, nn.Upsample, [None, 2, 'nearest']]
-  - [[-1,  9], 1, Concat, [1]]
-  - [-1, 2, C2f,      [128, True]]
+  # P5 → P4
+  - [-1, 1, nn.Upsample, [None, 2, 'nearest']]  #20
+  - [[20, 15], 1, Concat, [1]]                   #21: fuse P4
+  - [-1, 2, C2f,      [128, True]]              #22
 
-  - [-1, 1, nn.Upsample, [None, 2, 'nearest']]
-  - [[-1,  6], 1, Concat, [1]]
-  - [-1, 2, C2f,      [64, True]]
+  # P4 → P3
+  - [-1, 1, nn.Upsample, [None, 2, 'nearest']]  #23
+  - [[23, 10], 1, Concat, [1]]                   #24: fuse P3
+  - [-1, 2, C2f,      [64, True]]               #25
 
-  - [-1, 1, Conv,     [64, 3, 2]]
-  - [[-1, 14], 1, Concat, [1]]
-  - [-1, 2, C2f,      [128, True]]
+  # P3 → P4 down
+  - [-1, 1, Conv,     [64, 3, 2]]               #26
+  - [[26, 22], 1, Concat, [1]]                   #27
+  - [-1, 2, C2f,      [128, True]]              #28
 
-  - [-1, 1, Conv,     [128, 3, 2]]
-  - [[-1, 11], 1, Concat, [1]]
-  - [-1, 2, C2f,      [256, True]]
+  # P4 → P5 down
+  - [-1, 1, Conv,     [128, 3, 2]]              #29
+  - [[29, 19], 1, Concat, [1]]                   #30
+  - [-1, 2, C2f,      [256, True]]              #31
 
-  # unified Detect+Pose head on P3,P4,P5
-  - [[17, 20, 23], 1, DyHead, [nc, kpt_shape]]
+  # unified detection on P3, P4, P5
+  - [[25, 28, 31], 1, Detect, [nc]]             #32
+
+  # high-res Pose head on P3
+  - [25, 1, Conv,     [64, 1, 1]]               #33
+  - [-1, 1, Pose,     [nc, kpt_shape]]          #34
+
+  # coarse Pose head on P5
+  - [31, 1, Conv,     [128, 1, 1]]              #35
+  - [-1, 1, Pose,     [nc, kpt_shape]]          #36
