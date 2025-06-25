@@ -84,7 +84,7 @@ from .conv import (
     LightConv,
     RepConv,
 )
-
+from .fpn import BiFPN
 from .head import (
     OBB,
     Classify,
@@ -131,6 +131,7 @@ __all__ = (
     "CBAM",
     "CoordAtt",
     "Concat",
+    "BiFPN",
     # Blocks
     "TransformerLayer",
     "TransformerBlock",
