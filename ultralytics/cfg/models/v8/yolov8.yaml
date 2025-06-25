@@ -2,7 +2,7 @@
 task: pose
 nc: 1
 kpt_shape: [21,3]
-scale: "n"
+scale: "s"
 
 # --------------------------
 # Backbone (depth=1 everywhere, width×0.5)
