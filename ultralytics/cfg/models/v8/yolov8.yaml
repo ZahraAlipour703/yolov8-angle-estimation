@@ -1,33 +1,47 @@
-# ultra_nano_pose.yaml
+# ultra_nano_pose_fixed.yaml
 task: pose
-nc:   1
+nc: 1
 kpt_shape: [21,3]
 scale: "n"
 
+# --------------------------
 # Backbone (depth=1 everywhere, width×0.5)
+# --------------------------
 backbone:
-  - [-1, 1, Conv,     [16, 3, 2]]    # 0 → P1/2
-  - [-1, 1, DWConv,   [32, 3, 2]]    # 1 → P2/4
-  - [-1, 1, ECA,      [32, 3]]       # 2
-  - [-1, 1, C2f,      [32, True]]    # 3 → refine P2
+  - [-1, 1, Conv,       [16, 3, 2]]    # 0 → P1/2
+  - [-1, 1, DWConv,     [32, 3, 2]]    # 1 → P2/4
+  - [-1, 1, ECA,        [32,   3]]     # 2
+  - [-1, 1, C2f,        [32, True]]    # 3 (refine P2)
 
-  - [-1, 1, DWConv,   [64, 3, 2]]    # 4 → P3/8
-  - [-1, 1, CoordAtt,[64]]           # 5
-  - [-1, 1, C2f,      [64, True]]    # 6 → refine P3
+  - [-1, 1, DWConv,     [64, 3, 2]]    # 4 → P3/8
+  - [-1, 1, CoordAtt,   [64]]          # 5
+  - [-1, 1, C2f,        [64, True]]    # 6 (refine P3)
 
-  - [-1, 1, DWConv,   [128,3,2]]     # 7 → P4/16
-  - [-1, 1, C2f,      [128,True]]    # 8 → refine P4
+  - [-1, 1, DWConv,     [128, 3, 2]]   # 7 → P4/16
+  - [-1, 1, C2f,        [128, True]]   # 8 (refine P4)
 
-  - [-1, 1, DWConv,   [256,3,2]]     # 9 → P5/32
-  - [-1, 1, SPPF,     [256,5]]       # 10
+  - [-1, 1, DWConv,     [256, 3, 2]]   # 9 → P5/32
+  - [-1, 1, SPPF,       [256, 5]]      # 10
 
-# Neck: fuse P2, P3, P4 into a single 64-channel feature map
+# --------------------------
+# Neck (top-down FPN)
+# --------------------------
 head:
-  - [[2, 5, 8], 1, Concat, [1]]       # 11 ← concat ECA(P2), CoordAtt(P3), refine P4
-  - [-1, 1, C2f, [64, True]]          # 12 ← BiFPN-style refinement
+  # P5 → P4
+  - [-1, 1, nn.Upsample, [None, 2, 'nearest']]  # 11
+  - [[11, 8], 1, Concat,       [1]]             # 12
+  - [-1, 1, C2f,        [128, True]]           # 13 (FPN P4)
 
-  # Detection on P2/P3/P4
-  - [[2, 5, 8], 1, Detect, [nc]]      
+  # P4 → P3
+  - [-1, 1, nn.Upsample, [None, 2, 'nearest']]  # 14
+  - [[14, 6], 1, Concat,       [1]]             # 15
+  - [-1, 1, C2f,        [64, True]]            # 16 (FPN P3)
 
-  # Pose regression on P2/P3/P4
-  - [[2, 5, 8], 1, Pose,   [nc, kpt_shape]]
+# --------------------------
+# Heads
+# --------------------------
+  # Detect on P3, P4, P5
+  - [[16, 13, 10], 1, Detect, [nc]]
+
+  # Pose on P3, P4, P5
+  - [[16, 13, 10], 1, Pose,   [nc, kpt_shape]]
