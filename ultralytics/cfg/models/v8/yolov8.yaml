@@ -1,4 +1,5 @@
 # hybrid_nano.yaml
+task : "pose"
 nc: 1
 kpt_shape: [21,3]
 scale: "n"              # target ~9 GFLOPs
