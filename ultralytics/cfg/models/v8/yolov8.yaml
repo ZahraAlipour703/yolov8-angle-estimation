@@ -6,25 +6,28 @@ scale: "n"
 
 # Backbone (depth=1 everywhere, width×0.5)
 backbone:
-  - [-1,1,Conv,   [16,3,2]]    # P1/2
-  - [-1,1,DWConv, [32,3,2]]    # P2/4
-  - [-1,1,ECA,    [32,3]]      
-  - [-1,1,C2f,   [32,True]]    # single C2f
+  - [-1, 1, Conv,     [16, 3, 2]]    # 0 → P1/2
+  - [-1, 1, DWConv,   [32, 3, 2]]    # 1 → P2/4
+  - [-1, 1, ECA,      [32, 3]]       # 2
+  - [-1, 1, C2f,      [32, True]]    # 3 → refine P2
 
-  - [-1,1,DWConv, [64,3,2]]    # P3/8
-  - [-1,1,CoordAtt,[64]]
-  - [-1,1,C2f,   [64,True]]
+  - [-1, 1, DWConv,   [64, 3, 2]]    # 4 → P3/8
+  - [-1, 1, CoordAtt,[64]]           # 5
+  - [-1, 1, C2f,      [64, True]]    # 6 → refine P3
 
-  - [-1,1,DWConv, [128,3,2]]   # P4/16
-  - [-1,1,C2f,   [128,True]]
+  - [-1, 1, DWConv,   [128,3,2]]     # 7 → P4/16
+  - [-1, 1, C2f,      [128,True]]    # 8 → refine P4
 
-  - [-1,1,DWConv, [256,3,2]]   # P5/32
-  - [-1,1,SPPF,  [256,5]]
+  - [-1, 1, DWConv,   [256,3,2]]     # 9 → P5/32
+  - [-1, 1, SPPF,     [256,5]]       # 10
 
-# Single-stage BiFPN
+# Neck: fuse P2, P3, P4 into a single 64-channel feature map
 head:
-  - [[ 2, 5, 8], 1, BiFPN, [64]]  # fuse P2/P3/P4 into 64-ch
-  - [-1,1,Conv, [64,1,1]]         # reduce
+  - [[2, 5, 8], 1, Concat, [1]]       # 11 ← concat ECA(P2), CoordAtt(P3), refine P4
+  - [-1, 1, C2f, [64, True]]          # 12 ← BiFPN-style refinement
 
-  # combined Detect+Pose head
-  - [-1,1,DetectPose, [nc, kpt_shape]]
+  # Detection on P2/P3/P4
+  - [[2, 5, 8], 1, Detect, [nc]]      
+
+  # Pose regression on P2/P3/P4
+  - [[2, 5, 8], 1, Pose,   [nc, kpt_shape]]
