@@ -1,47 +1,40 @@
-# ultra_nano_pose_fixed.yaml
-task: pose
+# ultra_nano_detect.yaml
+task: detect
 nc: 1
-kpt_shape: [21,3]
 scale: "s"
 
 # --------------------------
 # Backbone (depth=1 everywhere, width×0.5)
 # --------------------------
 backbone:
-  - [-1, 1, Conv,       [16, 3, 2]]    # 0 → P1/2
-  - [-1, 1, DWConv,     [32, 3, 2]]    # 1 → P2/4
-  - [-1, 1, ECA,        [32,   3]]     # 2
-  - [-1, 1, C2f,        [32, True]]    # 3 (refine P2)
+  - [-1, 1, Conv,       [16, 3, 2]]    # P1/2
+  - [-1, 1, DWConv,     [32, 3, 2]]    # P2/4
+  - [-1, 1, ECA,        [32,   3]]
+  - [-1, 1, C2f,        [32, True]]
 
-  - [-1, 1, DWConv,     [64, 3, 2]]    # 4 → P3/8
-  - [-1, 1, CoordAtt,   [64]]          # 5
-  - [-1, 1, C2f,        [64, True]]    # 6 (refine P3)
+  - [-1, 1, DWConv,     [64, 3, 2]]    # P3/8
+  - [-1, 1, CoordAtt,   [64]]
+  - [-1, 1, C2f,        [64, True]]
 
-  - [-1, 1, DWConv,     [128, 3, 2]]   # 7 → P4/16
-  - [-1, 1, C2f,        [128, True]]   # 8 (refine P4)
+  - [-1, 1, DWConv,     [128, 3, 2]]   # P4/16
+  - [-1, 1, C2f,        [128, True]]
 
-  - [-1, 1, DWConv,     [256, 3, 2]]   # 9 → P5/32
-  - [-1, 1, SPPF,       [256, 5]]      # 10
+  - [-1, 1, DWConv,     [256, 3, 2]]   # P5/32
+  - [-1, 1, SPPF,       [256, 5]]
 
 # --------------------------
 # Neck (top-down FPN)
 # --------------------------
 head:
-  # P5 → P4
-  - [-1, 1, nn.Upsample, [None, 2, 'nearest']]  # 11
-  - [[11, 8], 1, Concat,       [1]]             # 12
-  - [-1, 1, C2f,        [128, True]]           # 13 (FPN P4)
+  - [-1, 1, nn.Upsample, [None, 2, 'nearest']]  
+  - [[-1, 8], 1, Concat, [1]]  
+  - [-1, 1, C2f, [128, True]]
 
-  # P4 → P3
-  - [-1, 1, nn.Upsample, [None, 2, 'nearest']]  # 14
-  - [[14, 6], 1, Concat,       [1]]             # 15
-  - [-1, 1, C2f,        [64, True]]            # 16 (FPN P3)
+  - [-1, 1, nn.Upsample, [None, 2, 'nearest']]  
+  - [[-1, 6], 1, Concat, [1]]  
+  - [-1, 1, C2f, [64, True]]
 
 # --------------------------
-# Heads
+# Detect Head
 # --------------------------
-  # Detect on P3, P4, P5
   - [[16, 13, 10], 1, Detect, [nc]]
-
-  # Pose on P3, P4, P5
-  - [[16, 13, 10], 1, Pose,   [nc, kpt_shape]]
