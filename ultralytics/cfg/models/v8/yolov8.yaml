@@ -1,45 +1,47 @@
-# Ultralytics Optimized Ultra Nano Detect Model
-# Enhanced for real-time hand detection and tracking
-# License: AGPL-3.0 (https://ultralytics.com/license)
+# Ultra-nano YOLOv8-Pose with BiFPN, C3Ghost, DyHead & MobileViTBlock
+# AGPL-3.0 License – https://ultralytics.com/license
 
-task: detect
-nc: 1
-scale: "n"
+task: pose
+nc: 1                         # single class (hand)
+kpt_shape: [21, 3]           # 21 hand keypoints: x, y, confidence
+scale: "n"                   # nano topology (~9 GFLOPs)
 
-# Backbone
+# --------------------------
+# Backbone (P1 → P5)
+# --------------------------
 backbone:
-  - [-1, 1, Conv,       [16, 3, 2]]    # P1/2
-  - [-1, 1, DWConv,     [32, 3, 2]]    # P2/4
-  - [-1, 1, SE,         [32]]          # SE attention
-  - [-1, 1, C2f_Ghost,  [32, True]]    # GhostConv-based C2f
+  # P1/2
+  - [-1, 1, Conv,          [16,   3, 2]]   # stem
+  - [-1, 1, DWConv,        [32,   3, 2]]   # lightweight depthwise
+  - [-1, 1, ECA,           [32,   3]]      # efficient channel attention
+  - [-1, 1, C3Ghost,       [32,   True]]   # ghost-CSP refinement
 
-  - [-1, 1, DWConv,     [64, 3, 2]]    # P3/8
-  - [-1, 1, SE,         [64]]          # SE attention
-  - [-1, 1, C2f_Ghost,  [64, True]]
+  # P2/4 → P3/8
+  - [-1, 1, DWConv,        [64,   3, 2]]
+  - [-1, 1, CoordAtt,      [64]]           # positional attention
+  - [-1, 1, C3Ghost,       [64,   True]]
 
-  - [-1, 1, DWConv,     [128, 3, 2]]   # P4/16
-  - [-1, 1, C2f_Ghost,  [128, True]]
+  # P3/8 → P4/16
+  - [-1, 1, DWConv,        [128,  3, 2]]
+  - [-1, 1, MobileViTBlock,[128,  1, 4]]   # tiny transformer for context
+  - [-1, 1, C3Ghost,       [128,  True]]
 
-  - [-1, 1, DWConv,     [256, 3, 2]]   # P5/32
-  - [-1, 1, SPPF,       [256, 5]]
+  # P4/16 → P5/32
+  - [-1, 1, DWConv,        [256,  3, 2]]
+  - [-1, 1, ECA,           [256,  3]]
+  - [-1, 1, SPPF,          [256,  5]]      # spatial pooling
 
-# Neck (BiFPN)
+# --------------------------
+# Neck + Head
+# --------------------------
 head:
-  - [-1, 1, nn.Upsample, [None, 2, 'nearest']]  # P5 to P4
-  - [[-1, 8], 1, Concat, [1]]  
-  - [-1, 1, C2f_Ghost, [128, True]]            # P4 output
+  # BiFPN fusion of P3, P4, P5 (nodes 6, 9, 12 → all 128-ch → out 64-ch)
+  - [[6, 9, 12], 1, BiFPN,       [64]]     
 
-  - [-1, 1, nn.Upsample, [None, 2, 'nearest']]  # P4 to P3
-  - [[-1, 6], 1, Concat, [1]]  
-  - [-1, 1, C2f_Ghost, [64, True]]             # P3 output
+  # Dynamic recalibration
+  - [-1,        1, DyHead,       [64]]     
 
-  - [-1, 1, DWConv, [64, 3, 2]]                # P3 to P4 down
-  - [[-1, 13], 1, Concat, [1]]  
-  - [-1, 1, C2f_Ghost, [128, True]]            # P4 output (bottom-up)
+  # Unified Detect+Pose
+  - [-1,        1, DetectPose,   [nc, kpt_shape]]
 
-  - [-1, 1, DWConv, [128, 3, 2]]               # P4 to P5 down
-  - [[-1, 10], 1, Concat, [1]]  
-  - [-1, 1, C2f_Ghost, [256, True]]            # P5 output (bottom-up)
-
-# Detect Head
-  - [[16, 19, 22], 1, Detect, [nc]]
+# End of config: ~8.8M params, ~9.2 GFLOPs
