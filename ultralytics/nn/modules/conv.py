@@ -14,6 +14,7 @@ __all__ = (
     "Conv2",
     "LightConv",
     "DWConv",
+    "C3Ghost"
     "DWConvTranspose2d",
     "ConvTranspose",
     "Focus",
