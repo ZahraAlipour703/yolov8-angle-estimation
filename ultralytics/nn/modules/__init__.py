@@ -82,6 +82,10 @@ from .conv import (
     GhostConv,
     Index,
     LightConv,
+    C3Ghost,
+    MobileViTBlock,
+    BiFPN,
+    DyHead,
     RepConv,
 )
 from .fpn import BiFPN
@@ -115,6 +119,9 @@ __all__ = (
     # Convolution & Attention
     "Conv",
     "Conv2",
+    "C3Ghost",
+    "MobileViTBlock",
+    "DyHead",
     "LightConv",
     "RepConv",
     "DWConv",
