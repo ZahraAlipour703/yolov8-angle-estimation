@@ -1,3 +1,11 @@
+import torch
+import torch.nn as nn
+
+# autopad and Conv live in conv.py
+from ultralytics.nn.modules.conv import autopad, Conv
+# C2f lives in block.py
+from ultralytics.nn.modules.block import C2f
+
 class MobileViTBlock(nn.Module):
     """Tiny MobileViT block: injects local→global self-attention"""
     def __init__(self, dim, ffn_dim, n_blocks=2):
