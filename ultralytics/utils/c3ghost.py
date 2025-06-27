@@ -1,7 +1,10 @@
 import torch
 import torch.nn as nn
-from ultralytics.nn.modules.conv import autopad, Conv, C2f  # reuse existing helpers
 
+# autopad and Conv live in conv.py
+from ultralytics.nn.modules.conv import autopad, Conv
+# C2f lives in block.py
+from ultralytics.nn.modules.block import C2f
 class C3Ghost(nn.Module):
     """Ghost‐based C3 block: replaces the pointwise conv in C3 with GhostConv"""
     def __init__(self, c1, c2, shortcut=True, g=1, e=0.5):
