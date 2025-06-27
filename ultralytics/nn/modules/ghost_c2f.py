@@ -1,3 +1,7 @@
+import torch
+import torch.nn as nn
+from ultralytics.nn.modules.conv import GhostConv
+
 class GhostC2f(nn.Module):
     """
     GhostC2f: variant of C2f block using GhostConv layers to reduce computation.
@@ -7,14 +11,12 @@ class GhostC2f(nn.Module):
         super().__init__()
         hidden_channels = int(channels * expansion)
         self.use_shortcut = use_shortcut
-        # First GhostConv reduces to hidden_channels
-        self.cv1 = GhostConv(channels, hidden_channels, kernel_size=1, stride=1, padding=0)
-        # Second GhostConv expands back to channels
-        self.cv2 = GhostConv(hidden_channels, channels, kernel_size=1, stride=1, padding=0)
+        # first 1×1 GhostConv to reduce to hidden_channels
+        self.cv1 = GhostConv(channels, hidden_channels, k=1, s=1, p=0)
+        # second 1×1 GhostConv to expand back to channels
+        self.cv2 = GhostConv(hidden_channels, channels, k=1, s=1, p=0)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         y = self.cv1(x)
         y = self.cv2(y)
-        if self.use_shortcut:
-            return x + y
-        return y
+        return x + y if self.use_shortcut else y
