@@ -14,7 +14,9 @@ __all__ = (
     "Conv2",
     "LightConv",
     "DWConv",
-    "C3Ghost"
+    "C3Ghost",
+    "MobileViTBlock",
+    "BiFPN",
     "DWConvTranspose2d",
     "ConvTranspose",
     "Focus",
