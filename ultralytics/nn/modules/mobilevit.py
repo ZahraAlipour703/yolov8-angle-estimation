@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
-from ultralytics.nn.modules.conv import autopad, Conv, C2f  # reuse existing helpers
+from ultralytics.nn.modules.conv import autopad, Conv      # autopad & Conv are here
+from ultralytics.nn.modules.block import C2f  
 
 class MobileViTBlock(nn.Module):
     """Tiny MobileViT block: injects local→global self-attention"""
