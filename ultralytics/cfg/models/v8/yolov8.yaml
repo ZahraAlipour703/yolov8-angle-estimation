@@ -1,52 +1,52 @@
-# ultra_nano_detect.yaml
+# ultra_nano_detect_fixed.yaml
 task: detect
-nc: 1
-scale: "s"
+nc: 1            # one class: hand
+scale: "s"       # small topology (~5 GFLOPs)
 
-# --------------------------
-# Backbone (depth=1 everywhere, width×0.5)
-# --------------------------
+# ------------------------------------------
+# Backbone (depth=1, width×0.5 everywhere)
+# ------------------------------------------
 backbone:
-  - [-1, 1, Conv,       [16, 3, 2]]    # P1/2
-  - [-1, 1, DWConv,     [32, 3, 2]]    # P2/4
-  - [-1, 1, ECA,        [32,   3]]
-  - [-1, 1, C2f,        [32, True]]
+  # P1/2
+  - [-1, 1, Conv,     [16, 3, 2]]   # 0
+  # P2/4
+  - [-1, 1, DWConv,   [32, 3, 2]]   # 1
+  - [-1, 1, ECA,      [32, 3]]      # 2
+  - [-1, 1, C2f,      [32, True]]   # 3
+  # P3/8
+  - [-1, 1, DWConv,   [64, 3, 2]]   # 4
+  - [-1, 1, CoordAtt, [64]]         # 5
+  - [-1, 1, C2f,      [64, True]]   # 6
+  # P4/16
+  - [-1, 1, DWConv,   [128, 3, 2]]  # 7
+  - [-1, 1, C2f,      [128, True]]  # 8
+  # P5/32
+  - [-1, 1, DWConv,   [256, 3, 2]]  # 9
+  - [-1, 1, SPPF,     [256, 5]]     # 10
 
-  - [-1, 1, DWConv,     [64, 3, 2]]    # P3/8
-  - [-1, 1, CoordAtt,   [64]]
-  - [-1, 1, C2f,        [64, True]]
-
-  - [-1, 1, DWConv,     [128, 3, 2]]   # P4/16
-  - [-1, 1, C2f,        [128, True]]
-
-  - [-1, 1, DWConv,     [256, 3, 2]]   # P5/32
-  - [-1, 1, SPPF,       [256, 5]]
-
-# --------------------------
-# Neck (top-down FPN)
-# --------------------------
+# ------------------------------------------
+# Neck (top-down FPN) + Fusion
+# ------------------------------------------
 head:
-  # 1) Top‑down fusion P5→P4
-  - [-1, 1, nn.Upsample, [None, 2, 'nearest']]  # node 12
-  - [[12, 9], 1, Concat, [1]]                   # node 13: merge Upsample(P5) + P4
-  - [-1, 1, C2f, [128, True]]                   # node 14
+  # P5 → P4
+  - [-1, 1, nn.Upsample, [None, 2, "nearest"]]  # 11
+  - [[11, 8], 1, Concat, [1]]                   # 12: concat upsampled P5 with P4
+  - [-1, 1, C2f, [128, True]]                   # 13
 
-  # 2) Top‑down fusion P4→P3
-  - [-1, 1, nn.Upsample, [None, 2, 'nearest']]  # node 15
-  - [[15, 6], 1, Concat, [1]]                   # node 16: merge Upsample + P3
-  - [-1, 1, C2f, [64, True]]                    # node 17
+  # P4 → P3
+  - [-1, 1, nn.Upsample, [None, 2, "nearest"]]  # 14
+  - [[14, 6], 1, Concat, [1]]                   # 15: concat upsampled P4 with P3
+  - [-1, 1, C2f, [64, True]]                    # 16
 
-  # 3) Single Concat of P3, P4, P5 for BiFPN
-  - [[6, 9, 12], 1, Concat, [1]]                # node 18
+  # P3 → P4 (downsample)
+  - [-1, 1, Conv, [64, 3, 2]]                   # 17
+  - [[17, 13], 1, Concat, [1]]                  # 18: concat downsampled P3 with fused P4
+  - [-1, 1, C2f, [128, True]]                   # 19
 
-  # 4) BiFPN now sees only one input (node 18)
-  - [-1, 1, BiFPN, [192, 64]]                   # node 19  
-      # here “192” is in_channels = sum(ch[6],ch[9],ch[12]) = 64+128+?  
-      # and “64” is your desired out_channels
+  # P4 → P5 (downsample)
+  - [-1, 1, Conv, [128, 3, 2]]                  # 20
+  - [[20, 10], 1, Concat, [1]]                  # 21: concat downsampled P4 with P5
+  - [-1, 1, C2f, [256, True]]                   # 22
 
-  # 5) Dynamic head
-  - [-1, 1, DyHead, [64]]                       # node 20
-
-  # 6) Unified Detect+Pose
-  - [-1, 1, DetectPose, [nc, kpt_shape]]        # node 21
-
+  # Final detection head
+  - [[16, 19, 22], 1, Detect, [nc]]             # 23: detect on P3/P4/P5
