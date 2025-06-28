@@ -1,34 +1,44 @@
 # ultralytics/nn/modules/fpn.py
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from ultralytics.nn.modules.conv import Conv
 
 class BiFPN(nn.Module):
     def __init__(self, in_channels_list, out_channels, conv=Conv, epsilon=1e-4):
-        """
-        in_channels_list: list of channel dims for each input feature map [P3, P4, P5]
-        out_channels: desired output channels after fusion
-        """
         super().__init__()
-        # learnable weights for each edge
-        self.w1 = nn.Parameter(torch.ones(2))
-        self.w2 = nn.Parameter(torch.ones(3))
-        # ensure numerical stability
+        # two sets of learnable edge weights
+        self.w1 = nn.Parameter(torch.ones(2), requires_grad=True)  # top‑down
+        self.w2 = nn.Parameter(torch.ones(3), requires_grad=True)  # bottom‑up
         self.epsilon = epsilon
-        # pointwise conv after fusion
-        self.p3_conv = conv(sum(in_channels_list), out_channels, 1, 1)
+        # pointwise conv after final fusion
+        self.out_conv = conv(sum(in_channels_list), out_channels, 1, 1)
+
     def forward(self, feats):
-        # feats: list of [P3, P4, P5] feature maps
         P3, P4, P5 = feats
-        # normalize weights
-        w1 = torch.relu(self.w1)
+
+        # --- Top‑down fusion pass ---
+        w1 = F.relu(self.w1)
         w1 = w1 / (w1.sum() + self.epsilon)
-        # top-down fusion P5→P4→P3
-        P5_up = nn.functional.interpolate(P5, scale_factor=2, mode='nearest')
-        P4_td = w1[0]*P4 + w1[1]*P5_up
-        # similarly bottom-up can be added...
-        # for brevity, just demonstrate a single fusion
-        fused = torch.cat([P3, 
-                           nn.functional.interpolate(P4_td, scale_factor=2), 
-                           nn.functional.interpolate(P5, scale_factor=4)], dim=1)
-        return self.p3_conv(fused)
+        P5_up = F.interpolate(P5, size=P4.shape[-2:], mode='nearest')
+        P4_td = w1[0] * P4 + w1[1] * P5_up
+
+        P4_up = F.interpolate(P4_td, size=P3.shape[-2:], mode='nearest')
+        P3_td = w1[0] * P3 + w1[1] * P4_up  # reuse same w1 or define new
+
+        # --- Bottom‑up fusion pass ---
+        w2 = F.relu(self.w2)
+        w2 = w2 / (w2.sum() + self.epsilon)
+        P3_down = F.max_pool2d(P3_td, kernel_size=2, stride=2)
+        P4_bu = w2[0] * P4_td + w2[1] * P3_down + w2[2] * P5
+
+        P4_down = F.max_pool2d(P4_bu, kernel_size=2, stride=2)
+        P5_bu = w2[0] * P5 + w2[1] * P4_down + w2[2] * 0  # or skip additional
+
+        # --- Final fusion and conv ---
+        fused = torch.cat([
+            F.interpolate(P3_td, size=P3.shape[-2:], mode='nearest'),
+            F.interpolate(P4_bu, size=P3.shape[-2:], mode='nearest'),
+            F.interpolate(P5_bu, size=P3.shape[-2:], mode='nearest'),
+        ], dim=1)
+        return self.out_conv(fused)
