@@ -1,33 +1,31 @@
-# Ultra-nano YOLOv8-Pose with BiFPN, C3Ghost, DyHead & MobileViTBlock
+# Ultra‑nano YOLOv8‑Pose with BiFPN, C3Ghost, DyHead & MobileViTBlock
 task: pose
 nc: 1
 kpt_shape: [21, 3]
 scale: "n"
 
 backbone:
-  - [-1, 1, Conv,          [16, 3, 2]]
-  - [-1, 1, DWConv,        [32, 3, 2]]
-  - [-1, 1, ECA,           [32, 3]]
-  - [-1, 1, C3Ghost,       [32, True]]
+  - [-1, 1, Conv,          [16,   3, 2]]   # 0
+  - [-1, 1, DWConv,        [32,   3, 2]]   # 1
+  - [-1, 1, ECA,           [32,   3]]      # 2
+  - [-1, 1, C3Ghost,       [32,   True]]   # 3
 
-  - [-1, 1, DWConv,        [64, 3, 2]]
-  - [-1, 1, CoordAtt,      [64]]
-  - [-1, 1, C3Ghost,       [64, True]]
+  - [-1, 1, DWConv,        [64,   3, 2]]   # 4
+  - [-1, 1, CoordAtt,      [64]]           # 5
+  - [-1, 1, C3Ghost,       [64,   True]]   # 6
 
-  - [-1, 1, DWConv,        [128, 3, 2]]
-  - [-1, 1, MobileViTBlock,[128, 1, 4]]
-  - [-1, 1, C3Ghost,       [128, True]]
+  - [-1, 1, DWConv,        [128,  3, 2]]   # 7
+  - [-1, 1, MobileViTBlock,[128,  1, 4]]   # 8
+  - [-1, 1, C3Ghost,       [128,  True]]   # 9
 
-  - [-1, 1, DWConv,        [256, 3, 2]]
-  - [-1, 1, ECA,           [256, 3]]
-  - [-1, 1, SPPF,          [256, 5]]
+  - [-1, 1, DWConv,        [256,  3, 2]]   # 10
+  - [-1, 1, ECA,           [256,  3]]      # 11
+  - [-1, 1, SPPF,          [256,  5]]      # 12
 
 head:
-  # concatenate P3 (node 6), P4 (9) and P5 (12)
-  - [[6, 9, 12], 1, Concat,    [1]]
-  # fuse with BiFPN
-  - [-1,        1, BiFPN,     [64]]
-  # dynamic recalibration
-  - [-1,        1, DyHead,    [64]]
-  # unified detect+pose
-  - [-1,        1, DetectPose,[nc, kpt_shape]]
+  # fuse P3 (node 6), P4 (9), P5 (12) → BiFPN
+  - [[6, 9, 12], 1, BiFPN,       [[64,128,256], 64]]
+  # dynamic feature recalibration
+  - [-1,        1, DyHead,       [64]]
+  # unified detect+pose output
+  - [-1,        1, DetectPose,   [nc, kpt_shape]]
