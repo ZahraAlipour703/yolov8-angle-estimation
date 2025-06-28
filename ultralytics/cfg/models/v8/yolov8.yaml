@@ -1,4 +1,5 @@
-# Ultra‑nano YOLOv8‑Pose with BiFPN, C3Ghost, DyHead & MobileViTBlock
+# ultra_nano_pose_fixed.yaml
+# Ultra-nano YOLOv8-Pose with BiFPN, C3Ghost, DyHead & MobileViTBlock
 task: pose
 nc: 1
 kpt_shape: [21, 3]
@@ -23,9 +24,11 @@ backbone:
   - [-1, 1, SPPF,          [256,  5]]      # 12
 
 head:
-  # fuse P3 (node 6), P4 (9), P5 (12) → BiFPN
+  # 1) fuse P3 (6), P4 (9), P5 (12)
   - [[6, 9, 12], 1, BiFPN,       [[64,128,256], 64]]
-  # dynamic feature recalibration
+  # 2) channel‐wise recalibration
   - [-1,        1, DyHead,       [64]]
-  # unified detect+pose output
-  - [-1,        1, DetectPose,   [nc, kpt_shape]]
+  # 3) detection on those same 3 scales
+  - [[6, 9, 12], 1, Detect,      [nc]]
+  # 4) pose head on the 3 feature maps as well
+  - [[6, 9, 12], 1, Pose,        [nc, kpt_shape]]
