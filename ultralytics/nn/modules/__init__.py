@@ -114,7 +114,8 @@ from .transformer import (
     TransformerEncoderLayer,
     TransformerLayer,
 )
-
+from .condconv    import DyConv
+from .skattention import SKAttention
 __all__ = (
     # Convolution & Attention
     "Conv",
@@ -122,6 +123,8 @@ __all__ = (
     "C3Ghost",
     "MobileViTBlock",
     "DyHead",
+    "DyConv",
+    "SKAttention",
     "LightConv",
     "RepConv",
     "DWConv",
