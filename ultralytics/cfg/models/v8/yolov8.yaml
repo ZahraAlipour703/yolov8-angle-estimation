@@ -3,7 +3,6 @@ task: detect
 nc: 1
 scale: "s"
 
-# 1) Backbone
 backbone:
   - [-1,1, Conv,      [16,3,2]]
   - [-1,1, DWConv,    [32,3,2]]
@@ -17,15 +16,19 @@ backbone:
   - [-1,1, DWConv,    [256,3,2]]
   - [-1,1, SPPF,      [256,5]]
 
-# 2) Dual‑repeat Weighted BiFPN
 head:
-  - [[6,8,10], 1, BiFPN,       [[64,128,256], 128]]  # first pass
-  - [[11,11,11],1, BiFPN,       [[128,128,128],128]]  # feedback pass
+  # 1st BiFPN pass: fuse P3,P4,P5 into node 11
+  - [[6,8,10], 1, Concat,      [1]]
+  - [11,      1, BiFPN,       [[64,128,256], 128]]
 
-  # 3) Dynamic & selective recalibration
-  - [-1, 1, DyConv,      [128, 3, 4]]
-  - [-1, 1, SKAttention, [128, 2, 4]]
+  # 2nd BiFPN (feedback) into node 12
+  - [[11,11,11], 1, Concat,      [1]]
+  - [12,          1, BiFPN,       [[128,128,128], 128]]
 
-  # 4) Dual Detect heads (both take exactly [nc])
-  - [[11], 1, Detect, [nc]]   # P3‑scale head
-  - [[12], 1, Detect, [nc]]   # P5‑scale head
+  # dynamic / attention
+  - [ -1, 1, DyConv,      [128, 3, 4]]
+  - [ -1, 1, SKAttention, [128, 2, 4]]
+
+  # dual detect heads
+  - [[11], 1, Detect, [nc]]
+  - [[12], 1, Detect, [nc]]
