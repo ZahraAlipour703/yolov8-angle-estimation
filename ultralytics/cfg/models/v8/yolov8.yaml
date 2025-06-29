@@ -1,42 +1,31 @@
+# ultra_nano_detect_pub_fixed.yaml
 task: detect
 nc: 1
-scale: "n"  # nano
+scale: "s"
 
-# --------------------------
-# Backbone
-# --------------------------
+# 1) Backbone
 backbone:
-  - [-1, 1, Conv,      [16, 3, 2]]   # 0: P1/2
-  - [-1, 1, DWConv,    [32, 3, 2]]   # 1: P2/4
-  - [-1, 1, ECA,       [32, 3]]      # 2
-  - [-1, 1, C2f,       [32, True]]   # 3
+  - [-1,1, Conv,      [16,3,2]]
+  - [-1,1, DWConv,    [32,3,2]]
+  - [-1,1, ECA,       [32,3]]
+  - [-1,1, C2f,       [32,True]]
+  - [-1,1, DWConv,    [64,3,2]]
+  - [-1,1, CoordAtt,  [64]]
+  - [-1,1, C2f,       [64,True]]
+  - [-1,1, DWConv,    [128,3,2]]
+  - [-1,1, C2f,       [128,True]]
+  - [-1,1, DWConv,    [256,3,2]]
+  - [-1,1, SPPF,      [256,5]]
 
-  - [-1, 1, DWConv,    [64, 3, 2]]   # 4: P3/8
-  - [-1, 1, CoordAtt,  [64]]         # 5
-  - [-1, 1, C2f,       [64, True]]   # 6
-
-  - [-1, 1, DWConv,    [128, 3, 2]]  # 7: P4/16
-  - [-1, 1, C2f,       [128, True]]  # 8
-
-  - [-1, 1, DWConv,    [256, 3, 2]]  # 9: P5/32
-  - [-1, 1, SPPF,      [256, 5]]     # 10
-
-# --------------------------
-# Neck: two passes of BiFPN
-# --------------------------
+# 2) Dual‑repeat Weighted BiFPN
 head:
-  # first BiFPN: fuse P3,P4,P5 → 128 channels
-  - [[6,8,10],  1, BiFPN, [[64,128,256],128]]  # 11
+  - [[6,8,10], 1, BiFPN,       [[64,128,256], 128]]  # first pass
+  - [[11,11,11],1, BiFPN,       [[128,128,128],128]]  # feedback pass
 
-  # second BiFPN: take the output of 11 again
-  - [[11],     1, BiFPN, [[128,128,128],128]]  # 12
+  # 3) Dynamic & selective recalibration
+  - [-1, 1, DyConv,      [128, 3, 4]]
+  - [-1, 1, SKAttention, [128, 2, 4]]
 
-  # dynamic conv (in_c, out_c, k, stride, padding, groups)
-  - [-1,       1, DyConv, [128,128,3,1,null,4]] # 13
-
-  # selective‑kernel attention (channels, M, G, reduction)
-  - [-1,       1, SKAttention, [128,2,32,16]]  # 14
-
-  # two Detect heads (no stride arg here!)
-  - [[11],     1, Detect, [nc]]  # fine-scale
-  - [[12],     1, Detect, [nc]]  # coarse-scale
+  # 4) Dual Detect heads (both take exactly [nc])
+  - [[11], 1, Detect, [nc]]   # P3‑scale head
+  - [[12], 1, Detect, [nc]]   # P5‑scale head
