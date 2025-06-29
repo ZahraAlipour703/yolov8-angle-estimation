@@ -1,45 +1,42 @@
-# ultra_nano_detect_novel.yaml
 task: detect
 nc: 1
 scale: "n"  # nano
 
 # --------------------------
-# Backbone (same as yours)
+# Backbone
 # --------------------------
 backbone:
-  - [-1, 1, Conv,      [16, 3, 2]]    # 0: P1/2
-  - [-1, 1, DWConv,    [32, 3, 2]]    # 1: P2/4
-  - [-1, 1, ECA,       [32, 3]]       # 2
-  - [-1, 1, C2f,       [32, True]]    # 3
+  - [-1, 1, Conv,      [16, 3, 2]]   # 0: P1/2
+  - [-1, 1, DWConv,    [32, 3, 2]]   # 1: P2/4
+  - [-1, 1, ECA,       [32, 3]]      # 2
+  - [-1, 1, C2f,       [32, True]]   # 3
 
-  - [-1, 1, DWConv,    [64, 3, 2]]    # 4: P3/8
-  - [-1, 1, CoordAtt,  [64]]          # 5
-  - [-1, 1, C2f,       [64, True]]    # 6
+  - [-1, 1, DWConv,    [64, 3, 2]]   # 4: P3/8
+  - [-1, 1, CoordAtt,  [64]]         # 5
+  - [-1, 1, C2f,       [64, True]]   # 6
 
-  - [-1, 1, DWConv,    [128, 3, 2]]   # 7: P4/16
-  - [-1, 1, C2f,       [128, True]]   # 8
+  - [-1, 1, DWConv,    [128, 3, 2]]  # 7: P4/16
+  - [-1, 1, C2f,       [128, True]]  # 8
 
-  - [-1, 1, DWConv,    [256, 3, 2]]   # 9: P5/32
-  - [-1, 1, SPPF,      [256, 5]]      # 10
+  - [-1, 1, DWConv,    [256, 3, 2]]  # 9: P5/32
+  - [-1, 1, SPPF,      [256, 5]]     # 10
 
 # --------------------------
-# Neck: 2× Weighted BiFPN
+# Neck: two passes of BiFPN
 # --------------------------
 head:
-  # — First BiFPN: fuse P3,P4,P5 → 128 channels
-  - [[6,8,10],   1, BiFPN, [[64,128,256],128]]   # 11
+  # first BiFPN: fuse P3,P4,P5 → 128 channels
+  - [[6,8,10],  1, BiFPN, [[64,128,256],128]]  # 11
 
-  # — Second BiFPN: feedback pass
-  - [[11,11,11], 1, BiFPN, [[128,128,128],128]]  # 12
+  # second BiFPN: take the output of 11 again
+  - [[11],     1, BiFPN, [[128,128,128],128]]  # 12
 
-  # — Dynamic Conv (CondConv‑style)
-  #    args: [in_c, out_c, k, stride, padding, groups]
-  - [-1, 1, DyConv, [128,128,3,1,null,4]]         # 13
+  # dynamic conv (in_c, out_c, k, stride, padding, groups)
+  - [-1,       1, DyConv, [128,128,3,1,null,4]] # 13
 
-  # — Selective‑Kernel attention
-  #    args: [channels, branches(M), groups(G), reduction]
-  - [-1, 1, SKAttention, [128,2,32,16]]           # 14
+  # selective‑kernel attention (channels, M, G, reduction)
+  - [-1,       1, SKAttention, [128,2,32,16]]  # 14
 
-  # — Dual Detect heads (no stride arg)
-  - [[11],       1, Detect, [nc]]                 # 15: detect on fused small features
-  - [[12],       1, Detect, [nc]]                 # 16: detect on fused large features
+  # two Detect heads (no stride arg here!)
+  - [[11],     1, Detect, [nc]]  # fine-scale
+  - [[12],     1, Detect, [nc]]  # coarse-scale
