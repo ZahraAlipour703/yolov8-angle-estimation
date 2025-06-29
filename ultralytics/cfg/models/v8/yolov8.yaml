@@ -7,34 +7,39 @@ scale: "n"  # nano
 # Backbone (same as yours)
 # --------------------------
 backbone:
-  - [-1, 1, Conv,     [16, 3, 2]]    # 0: P1/2
-  - [-1, 1, DWConv,   [32, 3, 2]]    # 1: P2/4
-  - [-1, 1, ECA,      [32, 3]]       # 2
-  - [-1, 1, C2f,      [32, True]]    # 3
+  - [-1, 1, Conv,      [16, 3, 2]]    # 0: P1/2
+  - [-1, 1, DWConv,    [32, 3, 2]]    # 1: P2/4
+  - [-1, 1, ECA,       [32, 3]]       # 2
+  - [-1, 1, C2f,       [32, True]]    # 3
 
-  - [-1, 1, DWConv,   [64, 3, 2]]    # 4: P3/8
-  - [-1, 1, CoordAtt, [64]]          # 5
-  - [-1, 1, C2f,      [64, True]]    # 6
+  - [-1, 1, DWConv,    [64, 3, 2]]    # 4: P3/8
+  - [-1, 1, CoordAtt,  [64]]          # 5
+  - [-1, 1, C2f,       [64, True]]    # 6
 
-  - [-1, 1, DWConv,   [128, 3, 2]]   # 7: P4/16
-  - [-1, 1, C2f,      [128, True]]   # 8
+  - [-1, 1, DWConv,    [128, 3, 2]]   # 7: P4/16
+  - [-1, 1, C2f,       [128, True]]   # 8
 
-  - [-1, 1, DWConv,   [256, 3, 2]]   # 9: P5/32
-  - [-1,1,SPPF,[256,5]]        # 10
+  - [-1, 1, DWConv,    [256, 3, 2]]   # 9: P5/32
+  - [-1, 1, SPPF,      [256, 5]]      # 10
 
 # --------------------------
 # Neck: 2× Weighted BiFPN
 # --------------------------
 head:
-  # ——— First BiFPN (P3,P4,P5 → 128ch)
-  - [[6,8,10], 1, BiFPN, [[64,128,256], 128]]     # node 11
-  # ——— Second BiFPN (feedback)
-  - [[11,11,11],1, BiFPN, [[128,128,128], 128]]   # node 12
+  # — First BiFPN: fuse P3,P4,P5 → 128 channels
+  - [[6,8,10],   1, BiFPN, [[64,128,256],128]]   # 11
 
-  # Inject lightweight dynamic conv and selective‑kernel:
-  - [-1,1, DyConv, [128, 3, groups=4]]            # node 13
-  - [-1,1, SKAttention, [128, 2, 4]]              # node 14
+  # — Second BiFPN: feedback pass
+  - [[11,11,11], 1, BiFPN, [[128,128,128],128]]  # 12
 
-  # ——— Dual Detect heads for small & large
-  - [[11],1, Detect, [nc, stride=8]]              # node 15: P3 (fine small)
-  - [[12],1, Detect, [nc, stride=32]]             # node 16: P5 (coarse large)
+  # — Dynamic Conv (CondConv‑style)
+  #    args: [in_c, out_c, k, stride, padding, groups]
+  - [-1, 1, DyConv, [128,128,3,1,null,4]]         # 13
+
+  # — Selective‑Kernel attention
+  #    args: [channels, branches(M), groups(G), reduction]
+  - [-1, 1, SKAttention, [128,2,32,16]]           # 14
+
+  # — Dual Detect heads (no stride arg)
+  - [[11],       1, Detect, [nc]]                 # 15: detect on fused small features
+  - [[12],       1, Detect, [nc]]                 # 16: detect on fused large features
