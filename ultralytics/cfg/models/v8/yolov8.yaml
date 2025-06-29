@@ -1,34 +1,51 @@
-# ultra_nano_detect_pub_fixed.yaml
+# ultra_nano_detect_pub.yaml
 task: detect
 nc: 1
-scale: "s"
+scale: "s"   # small (~6 GFLOPs)
 
+# --------------------------
+# 1) Backbone (depth=1, width×0.5 everywhere)
+# --------------------------
 backbone:
-  - [-1,1, Conv,      [16,3,2]]
-  - [-1,1, DWConv,    [32,3,2]]
-  - [-1,1, ECA,       [32,3]]
-  - [-1,1, C2f,       [32,True]]
-  - [-1,1, DWConv,    [64,3,2]]
-  - [-1,1, CoordAtt,  [64]]
-  - [-1,1, C2f,       [64,True]]
-  - [-1,1, DWConv,    [128,3,2]]
-  - [-1,1, C2f,       [128,True]]
-  - [-1,1, DWConv,    [256,3,2]]
-  - [-1,1, SPPF,      [256,5]]
+  - [-1, 1, Conv,     [16,  3, 2]]   # 0: P1/2
+  - [-1, 1, DWConv,   [32,  3, 2]]   # 1: P2/4
+  - [-1, 1, ECA,      [32,   3]]     # 2
+  - [-1, 1, C2f,      [32, True]]    # 3
 
+  - [-1, 1, DWConv,   [64,  3, 2]]   # 4: P3/8
+  - [-1, 1, CoordAtt, [64]]         # 5
+  - [-1, 1, C2f,      [64, True]]   # 6
+
+  - [-1, 1, DWConv,   [128, 3, 2]]   # 7: P4/16
+  - [-1, 1, C2f,      [128, True]]  # 8
+
+  - [-1, 1, DWConv,   [256, 3, 2]]   # 9: P5/32
+  - [-1, 1, SPPF,     [256, 5]]      # 10
+
+# --------------------------
+# 2) Top‑down fusion + enhancements + Detect
+# --------------------------
 head:
-  # 1st BiFPN pass: fuse P3,P4,P5 into node 11
-  - [[6,8,10], 1, Concat,      [1]]
-  - [11,      1, BiFPN,       [[64,128,256], 128]]
+  # Fuse P5 → P4
+  - [-1, 1, nn.Upsample,    [None, 2, 'nearest']]  # 11
+  - [[11, 8], 1, Concat,    [1]]                   # 12
+  - [-1, 1, C2f,            [128, True]]           # 13
 
-  # 2nd BiFPN (feedback) into node 12
-  - [[11,11,11], 1, Concat,      [1]]
-  - [12,          1, BiFPN,       [[128,128,128], 128]]
+  # Micro-ViT on P4
+  - [13, 1, MobileViTBlock, [128, 1, 4]]            # 14
+  - [-1, 1, C2f,            [128, True]]           # 15
 
-  # dynamic / attention
-  - [ -1, 1, DyConv,      [128, 3, 4]]
-  - [ -1, 1, SKAttention, [128, 2, 4]]
+  # Fuse P4 → P3
+  - [-1, 1, nn.Upsample,    [None, 2, 'nearest']]  # 16
+  - [[16, 6], 1, Concat,    [1]]                   # 17
+  - [-1, 1, C2f,            [64, True]]            # 18
 
-  # dual detect heads
-  - [[11], 1, Detect, [nc]]
-  - [[12], 1, Detect, [nc]]
+  # Final multi‑scale fusion (P3,P4,P5)
+  - [[18, 15, 10], 1, Concat, [1]]                 # 19
+  - [-1, 1, C2f,            [192, True]]           # 20
+
+  # Dynamic convolution recalibration
+  - [20, 1, DyConv,         [192, 3, 4]]            # 21
+
+  # Detect on fused features
+  - [[18, 20, 21], 1, Detect, [nc]]                 # 22
