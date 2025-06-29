@@ -49,8 +49,8 @@ head:
   # Optional micro‑transformer for richer context at P4
   - [7,   1, MobileViTBlock, [128, 1, 4]]            # 23
 
-  # Dynamic Head before detection
-  - [-1, 1, DyHead,          [256]]                 # 24
+  # Dynamic‐only detection head (wraps Detect)
+  - [-1, 1, DyDetect,        [nc]]                  # 24
 
   # Final Detect layer on P3, P4, P5
   - [[16, 19, 22], 1, Detect, [nc]]                  # 25
