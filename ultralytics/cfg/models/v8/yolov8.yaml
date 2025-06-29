@@ -1,53 +1,35 @@
-# ultra_nano_detect_fixed_fusion.yaml
 task: detect
 nc: 1
-scale: "s"  # small (~5 GFLOPs)
+scale: "s"
 
-# --------------------------
-# Backbone (depth=1, width×0.5 everywhere)
-# --------------------------
+# Backbone (same ultra‑light with one added SA at P3 & P4)
 backbone:
-  - [-1, 1, Conv,     [16, 3, 2]]    # 0: P1/2
-  - [-1, 1, DWConv,   [32, 3, 2]]    # 1: P2/4
-  - [-1, 1, ECA,      [32, 3]]       # 2
-  - [-1, 1, C2f,      [32, True]]    # 3
+  - [-1,1,Conv,     [16,3,2]]
+  - [-1,1,DWConv,   [32,3,2]]
+  - [-1,1,ECA,      [32,3]]
+  - [-1,1,C2f,      [32,True]]
 
-  - [-1, 1, DWConv,   [64, 3, 2]]    # 4: P3/8
-  - [-1, 1, CoordAtt, [64]]          # 5
-  - [-1, 1, C2f,      [64, True]]    # 6
+  - [-1,1,DWConv,   [64,3,2]]
+  - [-1,1,CoordAtt, [64]]
+  - [-1,1,C2f,      [64,True]]
+  - [-1,1,MobileViTBlock,[64,1,2]]   # global context at P3
 
-  - [-1, 1, DWConv,   [128, 3, 2]]   # 7: P4/16
-  - [-1, 1, C2f,      [128, True]]   # 8
+  - [-1,1,DWConv,   [128,3,2]]
+  - [-1,1,MobileViTBlock,[128,1,2]]  # context at P4
+  - [-1,1,C2f,      [128,True]]
 
-  - [-1, 1, DWConv,   [256, 3, 2]]   # 9: P5/32
-  - [-1, 1, SPPF,     [256, 5]]      # 10
+  - [-1,1,DWConv,   [256,3,2]]
+  - [-1,1,SPPF,     [256,5]]
 
-# --------------------------
-# Neck + Head (top‑down & bottom‑up fusion)
-# --------------------------
+# Neck: single 3‑node BiFPN
 head:
-  # P5 → P4 upsample & fusion
-  - [-1, 1, nn.Upsample,     [None, 2, 'nearest']]  # 11
-  - [[11, 8], 1, Concat,      [1]]                   # 12
-  - [-1, 1, C2f,             [128, True]]           # 13
+  - [[3, 6, 9], 1, BiFPN, [128]]  # fuse P2,P3,P4 →128
+  - [[-1,128,64], 1, Conv, [64,1,1]] # reduce to 64
 
-  # P4 → P3 upsample & fusion
-  - [-1, 1, nn.Upsample,     [None, 2, 'nearest']]  # 14
-  - [[14, 6], 1, Concat,      [1]]                   # 15
-  - [-1, 1, C2f,              [64, True]]           # 16
-
-  # P3 → P4 downsample & fusion
-  - [-1, 1, Conv,            [64, 3, 2]]            # 17
-  - [[17, 13], 1, Concat,     [1]]                   # 18
-  - [-1, 1, C2f,             [128, True]]           # 19
-
-  # P4 → P5 downsample & fusion
-  - [-1, 1, Conv,            [128, 3, 2]]           # 20
-  - [[20, 10], 1, Concat,     [1]]                   # 21
-  - [-1, 1, C2f,             [256, True]]           # 22
-
-  # Optional micro‑transformer for richer context at P4
-  - [7,   1, MobileViTBlock, [128, 1, 4]]            # 23
-
-  # **Final one detect**: fuse P3/P4/P5 → Detect
-  - [[16, 19, 22], 1, Detect, [nc]]                  # 24
+  # Decoupled head
+  - [-1,1,Conv, [64,64,3,1]]
+  - [-1,1,nn.ReLU, []]
+  - [-1,1,Detect, [nc]]   # classification branch
+  - [-2,1,Conv, [64,64,3,1]]
+  - [-1,1,nn.ReLU, []]
+  - [-1,1,Detect, [nc]]   # regression branch
