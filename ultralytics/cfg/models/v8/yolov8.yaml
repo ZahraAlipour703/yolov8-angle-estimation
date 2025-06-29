@@ -1,49 +1,30 @@
-# ultra_nano_detect_fixed.yaml
-# ——————————————————————————————————————————————————————————————————————————
-task: detect            # ← be sure this is "detect", not "pose"
-nc:   1                 # one class: hand
-scale: "s"              # small topology (~5 GFLOPs)
+task: detect
+nc: 1
+scale: "s"
 
-# — Backbone (depth=1 everywhere, width×0.5) ——————————————
+# Backbone (same ultra‑light with one added SA at P3 & P4)
 backbone:
-  # P1/2
-  - [-1, 1, Conv,    [16, 3, 2]]
-  # P2/4
-  - [-1, 1, DWConv,  [32, 3, 2]]
-  - [-1, 1, ECA,     [32,   3]]
-  - [-1, 1, C2f,     [32, True]]
-  # P3/8
-  - [-1, 1, DWConv,  [64, 3, 2]]
-  - [-1, 1, CoordAtt,[64]]
-  - [-1, 1, C2f,     [64, True]]
-  # P4/16
-  - [-1, 1, DWConv,  [128, 3, 2]]
-  - [-1, 1, C2f,     [128, True]]
-  # P5/32
-  - [-1, 1, DWConv,  [256, 3, 2]]
-  - [-1, 1, SPPF,    [256, 5]]
+  - [-1,1,Conv,               [16,3,2]]
+  - [-1,1,DWConv,             [32,3,2]]
+  - [-1,1,ECA,                [32,3]]
+  - [-1,1,C2f,                [32,True]]
 
-# — Neck (top‑down FPN) + final Detect head ——————————————
+  - [-1,1,DWConv,             [64,3,2]]
+  - [-1,1,CoordAtt,           [64]]
+  - [-1,1,C2f,                [64,True]]
+  - [-1,1,MobileViTBlock,     [64,1,2]]   # global context at P3
+
+  - [-1,1,DWConv,             [128,3,2]]
+  - [-1,1,MobileViTBlock,     [128,1,2]]  # context at P4
+  - [-1,1,C2f,                [128,True]]
+
+  - [-1,1,DWConv,             [256,3,2]]
+  - [-1,1,SPPF,               [256,5]]
+
+# Neck: single 3‑node BiFPN
 head:
-  # P5 → P4
-  - [-1, 1, nn.Upsample, [None, 2, 'nearest']]
-  - [[-1, 8], 1, Concat, [1]]
-  - [-1, 1, C2f,         [128, True]]
+  - [[3, 6, 9], 1, BiFPN,     [128]]      # fuse P2,P3,P4 → 128
+  - [-1,1,Conv,               [64,1,1]]   # reduce to 64
 
-  # P4 → P3
-  - [-1, 1, nn.Upsample, [None, 2, 'nearest']]
-  - [[-1, 6], 1, Concat, [1]]
-  - [-1, 1, C2f,         [64, True]]
-
-  # P3 → P4 (down)
-  - [-1, 1, Conv,        [64, 3, 2]]
-  - [[-1, 13],1, Concat, [1]]
-  - [-1, 1, C2f,         [128, True]]
-
-  # P4 → P5 (down)
-  - [-1, 1, Conv,        [128, 3, 2]]
-  - [[-1, 10],1, Concat, [1]]
-  - [-1, 1, C2f,         [256, True]]
-
-  # final Detect on P3, P4, P5
-  - [[16, 19, 22],1, Detect, [nc]]
+  # Decoupled-style but single Detect
+  - [-1,1,Detect,            [nc]]        # one detect head on that 64‑ch feature
