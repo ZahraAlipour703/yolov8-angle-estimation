@@ -1,28 +1,25 @@
+# ultralytics/utils/dydetect.py
 import torch
 import torch.nn as nn
-from ultralytics.nn.modules.conv import Conv
-from ultralytics.nn.modules.head import Detect, Pose
+from ultralytics.nn.modules.head import Detect
 
-class DyHead(nn.Module):
+class DyDetect(nn.Module):
     """
-    A “dynamic” head that runs both Detect and Pose on the same features.
-    Args:
-        nc: number of classes
-        kpt_shape: keypoints shape [n_keypoints, 3]
+    Dynamic detection head: wraps a standard YOLOv8 Detect but allows
+    optional per‐level weight modulation (if you extend to multi‐scale fusion).
+    For now, simply forwards features to Detect.
     """
-    def __init__(self, nc, kpt_shape):
+    def __init__(self, nc):
+        """
+        Args:
+            nc (int): number of object classes
+        """
         super().__init__()
-        # instantiate the two heads
-        self.detect = Detect(nc)                # from ultralytics.nn.modules.head
-        self.pose   = Pose(nc, kpt_shape)       # from ultralytics.nn.modules.head
+        self.detect = Detect(nc)  # standard Detect head from ultralytics
 
-    def forward(self, features):
+    def forward(self, feats):
         """
-        features: list of feature maps [P3, P4, P5]
-        returns a dict with detection and pose outputs
+        feats: list of feature maps [P3, P4, P5]
+        returns: same output as Detect
         """
-        # detection returns list of (batch, anchors, outputs)
-        det_out = self.detect(features)
-        # pose expects same list of features
-        pose_out = self.pose(features)
-        return {"det": det_out, "pose": pose_out}
+        return self.detect(feats)
