@@ -1,40 +1,49 @@
+# Ablation Study YAML: Remove CoordAtt only
+# Base: ultra_nano_detect_fixed_fusion.yaml
+# Module removed: CoordAtt (node 5)
+
 task: detect
-nc: 1
-scale: "s"
+nc: 1       # adjust to your dataset
+scale: "s"  # same as base (~5 GFLOPs)
 
+# --------------------------
+# Backbone (depth=1, width×0.5 everywhere)
+# --------------------------
 backbone:
-  - [-1, 1, Conv,     [16, 3, 2]]
-  - [-1, 1, DWConv,   [32, 3, 2]]
-  - [-1, 1, Conv,     [32, 3, 1]]   # ECA removed → simple Conv
-  - [-1, 1, C2f,      [32, True]]
+  - [-1, 1, Conv,     [16, 3, 2]]    # 0: P1/2
+  - [-1, 1, DWConv,   [32, 3, 2]]    # 1: P2/4
+  - [-1, 1, ECA,      [32, 3]]       # 2: keep ECA
+  - [-1, 1, C2f,      [32, True]]    # 3
 
-  - [-1, 1, DWConv,   [64, 3, 2]]
-  - [-1, 1, CoordAtt, [64]]
-  - [-1, 1, C2f,      [64, True]]
+  - [-1, 1, DWConv,   [64, 3, 2]]    # 4: P3/8
+  - [-1, 1, Conv,     [64, 3, 1]]    # 5: Replaced CoordAtt with plain Conv
+  - [-1, 1, C2f,      [64, True]]    # 6
 
-  - [-1, 1, DWConv,   [128, 3, 2]]
-  - [-1, 1, C2f,      [128, True]]
+  - [-1, 1, DWConv,   [128, 3, 2]]   # 7: P4/16
+  - [-1, 1, C2f,      [128, True]]   # 8
 
-  - [-1, 1, DWConv,   [256, 3, 2]]
-  - [-1, 1, SPPF,     [256, 5]]
+  - [-1, 1, DWConv,   [256, 3, 2]]   # 9: P5/32
+  - [-1, 1, SPPF,     [256, 5]]      # 10
 
+# --------------------------
+# Neck + Head (top‑down & bottom‑up fusion)
+# --------------------------
 head:
-  - [-1, 1, nn.Upsample, [None, 2, 'nearest']]
-  - [[11, 8], 1, Concat, [1]]
-  - [-1, 1, C2f, [128, True]]
+  - [-1, 1, nn.Upsample,     [None, 2, 'nearest']]  # 11
+  - [[11, 8], 1, Concat,      [1]]                  # 12
+  - [-1, 1, C2f,             [128, True]]           # 13
 
-  - [-1, 1, nn.Upsample, [None, 2, 'nearest']]
-  - [[14, 6], 1, Concat, [1]]
-  - [-1, 1, C2f, [64, True]]
+  - [-1, 1, nn.Upsample,     [None, 2, 'nearest']]  # 14
+  - [[14, 6], 1, Concat,      [1]]                  # 15
+  - [-1, 1, C2f,              [64, True]]           # 16
 
-  - [-1, 1, Conv, [64, 3, 2]]
-  - [[17, 13], 1, Concat, [1]]
-  - [-1, 1, C2f, [128, True]]
+  - [-1, 1, Conv,            [64, 3, 2]]            # 17
+  - [[17, 13], 1, Concat,     [1]]                  # 18
+  - [-1, 1, C2f,             [128, True]]           # 19
 
-  - [-1, 1, Conv, [128, 3, 2]]
-  - [[20, 10], 1, Concat, [1]]
-  - [-1, 1, C2f, [256, True]]
+  - [-1, 1, Conv,            [128, 3, 2]]           # 20
+  - [[20, 10], 1, Concat,     [1]]                  # 21
+  - [-1, 1, C2f,             [256, True]]           # 22
 
-  - [7, 1, MobileViTBlock, [128, 1, 4]]
-
-  - [[16, 19, 22], 1, Detect, [nc]]
+  - [7,   1, MobileViTBlock, [128, 1, 4]]            # 23: keep MicroViTBlock for P4
+  - [[16, 19, 22], 1, Detect, [nc]]                 # 24
