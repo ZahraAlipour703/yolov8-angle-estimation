@@ -1,40 +1,42 @@
-# ultra_nano_detect_no_sppf.yaml
+# ultra_nano_ablation_no_sppf.yaml
 task: detect
 nc: 1
 scale: "s"
 
 backbone:
-  - [-1, 1, Conv,     [16, 3, 2]]
-  - [-1, 1, DWConv,   [32, 3, 2]]
-  - [-1, 1, ECA,      [32, 3]]
-  - [-1, 1, C2f,      [32, True]]
+  - [-1, 1, Conv,     [16, 3, 2]]    
+  - [-1, 1, DWConv,   [32, 3, 2]]    
+  - [-1, 1, ECA,      [32, 3]]       
+  - [-1, 1, C2f,      [32, True]]    
 
-  - [-1, 1, DWConv,   [64, 3, 2]]
-  - [-1, 1, CoordAtt, [64]]
-  - [-1, 1, C2f,      [64, True]]
+  - [-1, 1, DWConv,   [64, 3, 2]]    
+  - [-1, 1, CoordAtt, [64]]          
+  - [-1, 1, C2f,      [64, True]]    
 
-  - [-1, 1, DWConv,   [128, 3, 2]]
-  - [-1, 1, C2f,      [128, True]]
+  - [-1, 1, DWConv,   [128, 3, 2]]   
+  - [-1, 1, C2f,      [128, True]]   
 
-  - [-1, 1, DWConv,   [256, 3, 2]]   # last backbone layer (no SPPF)
+  - [-1, 1, DWConv,   [256, 3, 2]]   # 9: P5/32
+  - [-1, 1, Conv,     [256, 3, 1]]   # 10': replace SPPF with plain conv
 
 head:
-  - [-1, 1, nn.Upsample,     [None, 2, 'nearest']]
-  - [[10, 8], 1, Concat,      [1]]
-  - [-1, 1, C2f,             [128, True]]
+  - [-1, 1, nn.Upsample, [None, 2, 'nearest']]  
+  - [[11, 8], 1, Concat, [1]]                   
+  - [-1, 1, C2f,         [128, True]]           
 
-  - [-1, 1, nn.Upsample,     [None, 2, 'nearest']]
-  - [[13, 6], 1, Concat,      [1]]
-  - [-1, 1, C2f,              [64, True]]
+  - [-1, 1, nn.Upsample, [None, 2, 'nearest']]  
+  - [[14, 6], 1, Concat, [1]]                   
+  - [-1, 1, C2f,          [64, True]]           
 
-  - [-1, 1, Conv,            [64, 3, 2]]
-  - [[16, 12], 1, Concat,     [1]]
-  - [-1, 1, C2f,             [128, True]]
+  - [-1, 1, Conv,        [64, 3, 2]]            
+  - [[17, 13], 1, Concat,[1]]                   
+  - [-1, 1, C2f,         [128, True]]           
 
-  - [-1, 1, Conv,            [128, 3, 2]]
-  - [[19, 9], 1, Concat,      [1]]
-  - [-1, 1, C2f,             [256, True]]
+  - [-1, 1, Conv,        [128, 3, 2]]           
+  - [[20, 10], 1, Concat,[1]]   # still uses 10 (now conv)                   
+  - [-1, 1, C2f,         [256, True]]           
 
-  - [7,   1, MobileViTBlock, [128, 1, 4]]  # still keep MobileViTBlock
+  # MobileViT still at P4
+  - [7, 1, MobileViTBlock, [128, 1, 4]]   # 23
 
-  - [[15, 18, 21], 1, Detect, [nc]]
+  - [[16, 19, 22], 1, Detect, [nc]]       # 24
