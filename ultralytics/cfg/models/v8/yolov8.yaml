@@ -37,7 +37,7 @@ head:
   - [-1, 1, C2f,         [256, True]]           
 
   # MobileViT Ablation: Replace with Identity
-  - [7, 1, Identity, []]                         # 23'
+  #- [7, 1, Identity, []]                         # 23'
 
   # Final detection head
   - [[16, 19, 22], 1, Detect, [nc]]              # 24
